@@ -15,6 +15,14 @@ hex.workspace = true
 rand.workspace = true
 sha2.workspace = true
 base64 = "0.22"
+tokio.workspace = true
+axum.workspace = true
+reqwest.workspace = true
+http-body-util.workspace = true
+bytes.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+http.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
