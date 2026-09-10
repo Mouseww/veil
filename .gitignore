@@ -1,0 +1,11 @@
+/target
+/ui/node_modules
+/ui/dist
+**/*.db
+**/*.db-wal
+**/*.db-shm
+.env
+master.key
+*.exe
+.worktrees
+worktrees
