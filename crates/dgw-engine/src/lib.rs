@@ -1,5 +1,6 @@
 pub mod creator;
 pub mod placeholder;
+pub mod rules;
 
 pub fn crate_name() -> &'static str {
     "dgw-engine"
