@@ -10,6 +10,7 @@ serde.workspace = true
 serde_json.workspace = true
 ulid.workspace = true
 regex.workspace = true
+fancy-regex.workspace = true
 once_cell.workspace = true
 sha2.workspace = true
 hex.workspace = true

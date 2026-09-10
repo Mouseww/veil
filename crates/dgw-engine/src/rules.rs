@@ -1,11 +1,9 @@
 use std::collections::HashSet;
-use std::sync::mpsc;
-use std::thread;
-use std::time::Duration;
 
-use regex::Regex;
+use fancy_regex::{Regex, RegexBuilder};
 
 const DEFAULT_TIMEOUT_MS: u64 = 50;
+const REGEX_BACKTRACK_LIMIT: usize = 1_000_000;
 
 /// A user-manageable matcher that detects one class of sensitive value.
 #[derive(Clone, Debug)]
@@ -58,9 +56,12 @@ impl Rule {
         priority: i32,
     ) -> Self {
         let id = id.into();
-        let re = Regex::new(pattern).unwrap_or_else(|err| {
-            panic!("invalid regex for rule {id}: {err}");
-        });
+        let re = RegexBuilder::new(pattern)
+            .backtrack_limit(REGEX_BACKTRACK_LIMIT)
+            .build()
+            .unwrap_or_else(|err| {
+                panic!("invalid regex for rule {id}: {err}");
+            });
         let name = id.clone();
         Self {
             id,
@@ -196,39 +197,37 @@ impl Occupied {
 fn match_rule(rule: &Rule, text: &str, occupied: &Occupied) -> Option<Vec<(usize, usize)>> {
     match &rule.matcher {
         Matcher::Regex(re) => {
-            let timeout = Duration::from_millis(rule.timeout_ms);
-            let re = re.clone();
-            let haystack = text.to_owned();
-            let gaps = occupied.gaps(haystack.len());
-            run_with_timeout(timeout, move || regex_spans(&re, &haystack, &gaps))
+            let gaps = occupied.gaps(text.len());
+            regex_spans(re, text, &gaps)
         }
         Matcher::Dictionary(words) => Some(dictionary_spans(text, words, occupied)),
         #[cfg(test)]
         Matcher::BlockUntilTimeout => {
-            let timeout = Duration::from_millis(rule.timeout_ms.max(1));
-            let blocked = timeout + Duration::from_millis(50);
-            run_with_timeout(timeout, move || {
-                thread::sleep(blocked);
-                Vec::new()
-            })
+            // Deterministic miss without spawning a worker thread.
+            let _ = rule.timeout_ms;
+            None
         }
     }
 }
 
-fn regex_spans(re: &Regex, text: &str, gaps: &[(usize, usize)]) -> Vec<(usize, usize)> {
+fn regex_spans(re: &Regex, text: &str, gaps: &[(usize, usize)]) -> Option<Vec<(usize, usize)>> {
     let mut spans = Vec::new();
     for &(gs, ge) in gaps {
         if gs >= ge || ge > text.len() {
             continue;
         }
-        for m in re.find_iter(&text[gs..ge]) {
+        for result in re.find_iter(&text[gs..ge]) {
+            let m = match result {
+                Ok(m) => m,
+                Err(_) => return None,
+            };
             if m.start() == m.end() {
                 continue;
             }
             spans.push((gs + m.start(), gs + m.end()));
         }
     }
-    spans
+    Some(spans)
 }
 
 fn dictionary_spans(text: &str, words: &[String], occupied: &Occupied) -> Vec<(usize, usize)> {
@@ -288,25 +287,6 @@ fn commit_spans(
     }
 }
 
-/// Run `work` on a worker thread and treat `recv_timeout` expiry as a miss.
-fn run_with_timeout<T, F>(timeout: Duration, work: F) -> Option<T>
-where
-    T: Send + 'static,
-    F: FnOnce() -> T + Send + 'static,
-{
-    let (tx, rx) = mpsc::channel();
-    let handle = thread::spawn(move || {
-        let _ = tx.send(work());
-    });
-    match rx.recv_timeout(timeout) {
-        Ok(value) => {
-            let _ = handle.join();
-            Some(value)
-        }
-        Err(_) => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -361,6 +341,32 @@ mod tests {
         let phone = Rule::regex("phone", "PHONE", r"1[3-9]\d{9}", 50);
         let set = ruleset(vec![evil, phone]);
         let hits = set.find_hits(&format!("{}13800138000", "a".repeat(20)));
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].type_prefix, "PHONE");
+    }
+
+    #[test]
+    fn regex_backtrack_limit_is_miss_for_that_rule_only() {
+        let re = RegexBuilder::new(r"(?i)(a|b|ab)*(?>c)")
+            .backtrack_limit(1)
+            .seek(false)
+            .build()
+            .expect("pathological regex compiles");
+        let hay = "ab".repeat(40);
+        assert_eq!(regex_spans(&re, &hay, &[(0, hay.len())]), None);
+
+        let evil = Rule {
+            id: "evil".into(),
+            name: "evil".into(),
+            type_prefix: "X".into(),
+            enabled: true,
+            matcher: Matcher::Regex(re),
+            priority: 1,
+            timeout_ms: DEFAULT_TIMEOUT_MS,
+        };
+        let phone = Rule::regex("phone", "PHONE", r"1[3-9]\d{9}", 50);
+        let set = ruleset(vec![evil, phone]);
+        let hits = set.find_hits(&format!("{hay}13800138000"));
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].type_prefix, "PHONE");
     }
