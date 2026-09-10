@@ -62,8 +62,14 @@ mod tests {
             classify("/v1/chat/completions"),
             Some(ProtocolFamily::OpenAiCompletions)
         );
-        assert_eq!(classify("/v1/responses"), Some(ProtocolFamily::OpenAiResponses));
-        assert_eq!(classify("/v1/models"), Some(ProtocolFamily::OpenAiCompletions));
+        assert_eq!(
+            classify("/v1/responses"),
+            Some(ProtocolFamily::OpenAiResponses)
+        );
+        assert_eq!(
+            classify("/v1/models"),
+            Some(ProtocolFamily::OpenAiCompletions)
+        );
         assert_eq!(classify("/secret"), None);
     }
 }

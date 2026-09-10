@@ -232,7 +232,10 @@ fn now_unix() -> i64 {
 }
 
 fn is_constraint(err: &rusqlite::Error) -> bool {
-    matches!(err.sqlite_error_code(), Some(ErrorCode::ConstraintViolation))
+    matches!(
+        err.sqlite_error_code(),
+        Some(ErrorCode::ConstraintViolation)
+    )
 }
 
 fn db_err(err: rusqlite::Error) -> StoreError {

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use super::sse::{restore_json_body, SseRestorer};
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
@@ -10,7 +11,6 @@ use dgw_engine::creator::creator_from_headers;
 use dgw_engine::mapping::MappingStore;
 use dgw_engine::rules::RuleSet;
 use dgw_engine::walk::{desensitize_json, WalkError};
-use super::sse::{restore_json_body, SseRestorer};
 use http_body_util::BodyExt;
 use serde_json::Value;
 
@@ -68,9 +68,7 @@ async fn proxy_inner(
     };
 
     if is_multipart(&headers) {
-        return Err(
-            (StatusCode::UNSUPPORTED_MEDIA_TYPE, "multipart rejected").into_response(),
-        );
+        return Err((StatusCode::UNSUPPORTED_MEDIA_TYPE, "multipart rejected").into_response());
     }
 
     if let Some(len) = content_length(&headers) {
@@ -120,8 +118,8 @@ async fn proxy_inner(
         .await
         .map_err(|_| (StatusCode::BAD_GATEWAY, "upstream error").into_response())?;
 
-    let status = StatusCode::from_u16(upstream.status().as_u16())
-        .unwrap_or(StatusCode::BAD_GATEWAY);
+    let status =
+        StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let mut response = Response::builder().status(status);
     for (name, value) in upstream.headers().iter() {
         if skip_response_header(name) {
@@ -155,14 +153,12 @@ fn prepare_body(
         return Ok(Bytes::new());
     }
     if looks_like_json(headers, raw) {
-        let value: Value = serde_json::from_slice(raw).map_err(|_| {
-            (StatusCode::BAD_GATEWAY, "unscannable json").into_response()
-        })?;
+        let value: Value = serde_json::from_slice(raw)
+            .map_err(|_| (StatusCode::BAD_GATEWAY, "unscannable json").into_response())?;
         match desensitize_json(&value, &state.rules, state.store.as_ref(), creator) {
             Ok(redacted) => {
-                let out = serde_json::to_vec(&redacted).map_err(|_| {
-                    (StatusCode::BAD_GATEWAY, "re-encode").into_response()
-                })?;
+                let out = serde_json::to_vec(&redacted)
+                    .map_err(|_| (StatusCode::BAD_GATEWAY, "re-encode").into_response())?;
                 Ok(Bytes::from(out))
             }
             Err(WalkError::MappingWrite) | Err(WalkError::StoreUnavailable) => {
@@ -180,9 +176,7 @@ fn prepare_body(
             let placeholder = state
                 .store
                 .get_or_insert(creator, &hit.type_prefix, &hit.plaintext)
-                .map_err(|_| {
-                    (StatusCode::BAD_GATEWAY, "desensitize failed").into_response()
-                })?;
+                .map_err(|_| (StatusCode::BAD_GATEWAY, "desensitize failed").into_response())?;
             out.replace_range(hit.start..hit.end, &placeholder.format());
         }
         Ok(Bytes::from(out))

@@ -13,7 +13,10 @@ fn main() {
     }
     let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
     if ui.join("node_modules").exists() {
-        let st = Command::new(npm).args(["run", "build"]).current_dir(&ui).status();
+        let st = Command::new(npm)
+            .args(["run", "build"])
+            .current_dir(&ui)
+            .status();
         if st.ok().is_none_or(|s| !s.success()) {
             println!("cargo:warning=ui build failed; using existing dist if any");
         }

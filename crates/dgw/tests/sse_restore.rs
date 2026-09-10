@@ -32,8 +32,12 @@ fn collect_text(sse: &str, pointer: &str) -> String {
     let mut out = String::new();
     for block in sse.split("\n\n") {
         for line in block.lines() {
-            let Some(data) = line.strip_prefix("data:") else { continue; };
-            let Ok(v) = serde_json::from_str::<Value>(data.trim()) else { continue; };
+            let Some(data) = line.strip_prefix("data:") else {
+                continue;
+            };
+            let Ok(v) = serde_json::from_str::<Value>(data.trim()) else {
+                continue;
+            };
             if let Some(s) = v.pointer(pointer).and_then(|x| x.as_str()) {
                 out.push_str(s);
             }
@@ -52,8 +56,13 @@ fn anthropic_placeholder_split_across_events() {
     let mut second = String::from(&token[mid..]);
     second.push_str(" now");
     let mut r = SseRestorer::new(&store, anonymous_creator());
-    let mut out = r.push(&event_with_text("content_block_delta", &first)).unwrap();
-    out.push_str(&r.push(&event_with_text("content_block_delta", &second)).unwrap());
+    let mut out = r
+        .push(&event_with_text("content_block_delta", &first))
+        .unwrap();
+    out.push_str(
+        &r.push(&event_with_text("content_block_delta", &second))
+            .unwrap(),
+    );
     out.push_str(&r.flush().unwrap());
     assert!(out.contains("event: content_block_delta"));
     assert_eq!(collect_text(&out, "/delta/text"), "call 13800138000 now");

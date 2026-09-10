@@ -1,10 +1,10 @@
 //! Desensitization Gateway library surface for config, data dir, and master key.
 
+pub mod admin;
 pub mod config;
 pub mod data_dir;
 pub mod logging;
 pub mod master_key;
-pub mod admin;
 pub mod process;
 pub mod proxy;
 

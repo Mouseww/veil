@@ -1,4 +1,3 @@
-
 use std::sync::{Arc, Mutex};
 
 use axum::body::Body;
@@ -115,7 +114,14 @@ async fn json_post_without_hits_is_unchanged() {
     let store = Arc::new(MemoryStore::new());
     let (port, cap, _) = setup(store, 32 * 1024 * 1024).await;
     let body = serde_json::to_vec(&json!({"messages":[{"content":"hello"}]})).unwrap();
-    let (status, _, _) = send(port, "POST", "/v1/messages", Some("application/json"), body.clone()).await;
+    let (status, _, _) = send(
+        port,
+        "POST",
+        "/v1/messages",
+        Some("application/json"),
+        body.clone(),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     let hits = cap.hits.lock().unwrap();
     let got: Value = serde_json::from_slice(&hits[0].body).unwrap();

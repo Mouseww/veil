@@ -84,11 +84,7 @@ async fn serve(data_dir: &std::path::Path, cfg: &Config) -> Result<(), Box<dyn s
     let key = load_or_create(data_dir, cfg.mode)?;
     let store = SqliteStore::open(data_dir.join("mappings.db"), &key)
         .map_err(|e| format!("mapping store: {e}"))?;
-    let state = AppState::new(
-        Arc::new(store),
-        UpstreamConfig::from(cfg),
-        limit,
-    );
+    let state = AppState::new(Arc::new(store), UpstreamConfig::from(cfg), limit);
     let proxy = router(state);
     let loopback = cfg.bind == "127.0.0.1" || cfg.bind == "localhost" || cfg.bind == "::1";
     let admin = AdminState {

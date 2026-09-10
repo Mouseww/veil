@@ -8,7 +8,10 @@ pub fn format_event(fields: &[(&str, &str)]) -> String {
         if forbidden_key(key) {
             continue;
         }
-        map.insert(key.to_string(), serde_json::Value::String(value.to_string()));
+        map.insert(
+            key.to_string(),
+            serde_json::Value::String(value.to_string()),
+        );
     }
     serde_json::Value::Object(map).to_string()
 }
@@ -21,7 +24,10 @@ pub fn log_event(data_dir: &std::path::Path, fields: &[(&str, &str)]) -> std::io
     let path = dir.join("dgw.log");
     rotate_if_needed(&dir, &path)?;
     use std::io::Write;
-    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(&path)?;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)?;
     writeln!(f, "{}", format_event(fields))?;
     Ok(())
 }
@@ -60,10 +66,7 @@ mod tests {
     #[test]
     fn format_event_has_path_template_not_plaintext_secret() {
         let secret = "13800138000";
-        let line = format_event(&[
-            ("path_template", "/v1/messages"),
-            ("hit_types", "PHONE"),
-        ]);
+        let line = format_event(&[("path_template", "/v1/messages"), ("hit_types", "PHONE")]);
         assert!(
             line.contains("/v1/messages"),
             "logged line should include path_template: {line}"

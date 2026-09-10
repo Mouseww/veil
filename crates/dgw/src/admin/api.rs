@@ -26,7 +26,11 @@ pub struct AdminState {
     pub proxy_port: u16,
     pub management_port: u16,
 }
-fn require_token(state: &AdminState, headers: &HeaderMap, mutating: bool) -> Result<(), StatusCode> {
+fn require_token(
+    state: &AdminState,
+    headers: &HeaderMap,
+    mutating: bool,
+) -> Result<(), StatusCode> {
     let cfg = state.config.lock().unwrap_or_else(|e| e.into_inner());
     let require = mutating || !state.loopback;
     token_authorized(headers, &cfg.admin_token_hash, require)
@@ -52,9 +56,18 @@ pub async fn get_status(State(state): State<AdminState>, headers: HeaderMap) -> 
     if let Err(code) = require_token(&state, &headers, false) {
         return code.into_response();
     }
-    let cfg = state.config.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let cfg = state
+        .config
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let master_key_set = load_or_create(&state.data_dir, cfg.mode).is_ok();
-    let last_error_class = state.traffic.snapshot().into_iter().rev().find_map(|e| e.error_class);
+    let last_error_class = state
+        .traffic
+        .snapshot()
+        .into_iter()
+        .rev()
+        .find_map(|e| e.error_class);
     Json(StatusBody {
         product: "Desensitization Gateway",
         bind: cfg.bind,
@@ -87,7 +100,11 @@ pub async fn get_rules(State(state): State<AdminState>, headers: HeaderMap) -> i
     if let Err(code) = require_token(&state, &headers, false) {
         return code.into_response();
     }
-    let cfg = state.config.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let cfg = state
+        .config
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     if cfg.rules.is_empty() {
         let views: Vec<RuleView> = builtin_ruleset()
             .rules()
@@ -165,7 +182,11 @@ pub async fn post_dry_run(
     if let Err(code) = require_token(&state, &headers, true) {
         return code.into_response();
     }
-    let cfg = state.config.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let cfg = state
+        .config
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let set = ruleset_from_config(&cfg);
     let _throwaway = MemoryStore::new();
     let hits: Vec<DryHit> = set
@@ -206,11 +227,18 @@ fn ruleset_from_config(cfg: &Config) -> RuleSet {
     RuleSet::new(rules, Allowlist::from(cfg.allowlist.clone()))
 }
 
-pub async fn get_allowlist(State(state): State<AdminState>, headers: HeaderMap) -> impl IntoResponse {
+pub async fn get_allowlist(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
     if let Err(code) = require_token(&state, &headers, false) {
         return code.into_response();
     }
-    let cfg = state.config.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let cfg = state
+        .config
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     Json(cfg.allowlist).into_response()
 }
 
@@ -236,11 +264,18 @@ pub struct UpstreamBody {
     pub openai_responses_upstream: String,
 }
 
-pub async fn get_upstream(State(state): State<AdminState>, headers: HeaderMap) -> impl IntoResponse {
+pub async fn get_upstream(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
     if let Err(code) = require_token(&state, &headers, false) {
         return code.into_response();
     }
-    let cfg = state.config.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let cfg = state
+        .config
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     Json(UpstreamBody {
         anthropic_upstream: cfg.anthropic_upstream,
         openai_completions_upstream: cfg.openai_completions_upstream,
@@ -345,10 +380,17 @@ pub async fn get_traffic(State(state): State<AdminState>, headers: HeaderMap) ->
     let mut body = String::from("event: snapshot\ndata: ");
     body.push_str(&serde_json::to_string(&events).unwrap_or_else(|_| String::from("[]")));
     body.push_str("\n\n");
-    ([ (axum::http::header::CONTENT_TYPE, "text/event-stream") ], body).into_response()
+    (
+        [(axum::http::header::CONTENT_TYPE, "text/event-stream")],
+        body,
+    )
+        .into_response()
 }
 
-pub async fn post_reset_token(State(state): State<AdminState>, headers: HeaderMap) -> impl IntoResponse {
+pub async fn post_reset_token(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
     if let Err(code) = require_token(&state, &headers, true) {
         return code.into_response();
     }
