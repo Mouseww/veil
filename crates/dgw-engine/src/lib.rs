@@ -1,8 +1,10 @@
 pub mod builtin;
 pub mod creator;
 mod ip;
+pub mod mapping;
 pub mod placeholder;
 pub mod rules;
+pub mod walk;
 
 pub fn crate_name() -> &'static str {
     "dgw-engine"
