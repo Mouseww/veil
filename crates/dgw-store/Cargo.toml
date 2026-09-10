@@ -1,0 +1,19 @@
+[package]
+name = "dgw-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+dgw-engine = { path = "../dgw-engine" }
+aes-gcm.workspace = true
+hkdf.workspace = true
+rand.workspace = true
+rusqlite.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+ulid.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
