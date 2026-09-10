@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "command": "node scripts/dgw.mjs start",
+        "once": true
+      }
+    ]
+  }
+}
