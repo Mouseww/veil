@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/dgw-engine", "crates/dgw-store"]
+members = ["crates/dgw-engine", "crates/dgw-store", "crates/dgw"]
 
 [workspace.package]
 version = "0.1.0"
@@ -25,3 +25,4 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 hmac = "0.12"
 zeroize = { version = "1.8", features = ["derive"] }
 tempfile = "3"
+toml = "0.8"
