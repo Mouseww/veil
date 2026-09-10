@@ -174,7 +174,7 @@ fn apply_env_overrides(cfg: &mut Config) {
     }
 }
 
-fn generate_admin_token() -> String {
+pub(crate) fn generate_admin_token() -> String {
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
     hex::encode(bytes)

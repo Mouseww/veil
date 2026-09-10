@@ -95,6 +95,16 @@ impl Rule {
         }
     }
 
+    pub fn kind(&self) -> &'static str {
+        match self.matcher {
+            Matcher::Regex(_) => "regex",
+            Matcher::Dictionary(_) => "dictionary",
+            Matcher::Ip => "ip",
+            #[cfg(test)]
+            Matcher::BlockUntilTimeout => "timeout",
+        }
+    }
+
     pub fn with_timeout_ms(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = timeout_ms;
         self
@@ -138,6 +148,10 @@ impl RuleSet {
     pub fn new(mut rules: Vec<Rule>, allowlist: Allowlist) -> Self {
         rules.sort_by(|a, b| b.priority.cmp(&a.priority).then_with(|| a.id.cmp(&b.id)));
         Self { rules, allowlist }
+    }
+
+    pub fn rules(&self) -> &[Rule] {
+        &self.rules
     }
 
     pub fn find_hits(&self, text: &str) -> Vec<Hit> {

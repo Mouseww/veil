@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use dgw::admin::{self, AdminState, TrafficLog};
 use dgw::config::Config;
 use dgw::data_dir::default_data_dir;
 use dgw::master_key::load_or_create;
@@ -89,9 +90,16 @@ async fn serve(data_dir: &std::path::Path, cfg: &Config) -> Result<(), Box<dyn s
         limit,
     );
     let proxy = router(state);
-    let mgmt = axum::Router::new().fallback(axum::routing::any(|| async {
-        axum::http::StatusCode::NOT_FOUND
-    }));
+    let loopback = cfg.bind == "127.0.0.1" || cfg.bind == "localhost" || cfg.bind == "::1";
+    let admin = AdminState {
+        data_dir: data_dir.to_path_buf(),
+        config: Arc::new(std::sync::Mutex::new(cfg.clone())),
+        loopback,
+        traffic: TrafficLog::default(),
+        proxy_port: cfg.proxy_port,
+        management_port: cfg.management_port,
+    };
+    let mgmt = admin::router(admin);
     let proxy_bind = format!("{}:{}", cfg.bind, cfg.proxy_port);
     let mgmt_bind = format!("{}:{}", cfg.bind, cfg.management_port);
     let p = TcpListener::bind(&proxy_bind).await?;
