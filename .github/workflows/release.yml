@@ -1,0 +1,66 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            asset: dgw-windows-x64.exe
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset: dgw-linux-x64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            asset: dgw-linux-arm64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            asset: dgw-macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            asset: dgw-macos-x64
+    runs-on: ${{ matrix.os }}
+    env:
+      DGW_SKIP_UI_BUILD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: build ui
+        working-directory: ui
+        run: npm ci && npm run build
+      - name: build binary
+        run: cargo build --release -p dgw --target ${{ matrix.target }}
+      - name: package
+        shell: bash
+        run: |
+          mkdir -p dist
+          bin="target/${{ matrix.target }}/release/dgw"
+          if [ -f "${bin}.exe" ]; then bin="${bin}.exe"; fi
+          cp "$bin" "dist/${{ matrix.asset }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+  checksums:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: SHA256SUMS
+        working-directory: dist
+        run: sha256sum * > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*

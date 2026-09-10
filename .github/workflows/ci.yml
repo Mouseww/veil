@@ -1,0 +1,30 @@
+name: ci
+on:
+  push:
+    branches: [master, main, feature/**]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      DGW_SKIP_UI_BUILD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+      - name: cargo test
+        run: cargo test --workspace
+      - name: ui tests
+        working-directory: ui
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - name: plugin tests
+        run: node --test plugin/claude-code/scripts/dgw.test.mjs
