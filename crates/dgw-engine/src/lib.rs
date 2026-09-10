@@ -4,6 +4,7 @@ mod ip;
 pub mod mapping;
 pub mod placeholder;
 pub mod rules;
+pub mod sliding;
 pub mod walk;
 
 pub fn crate_name() -> &'static str {

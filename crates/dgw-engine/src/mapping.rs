@@ -94,3 +94,21 @@ impl MappingStore for MemoryStore {
         }
     }
 }
+
+/// A [`MappingStore`] that always reports [`StoreError::Unavailable`].
+pub struct DownStore;
+
+impl MappingStore for DownStore {
+    fn get_or_insert(
+        &self,
+        _creator: &Creator,
+        _type_prefix: &str,
+        _plaintext: &str,
+    ) -> Result<Placeholder, StoreError> {
+        Err(StoreError::Unavailable)
+    }
+
+    fn lookup(&self, _creator: &Creator, _placeholder: &Placeholder) -> Result<Lookup, StoreError> {
+        Err(StoreError::Unavailable)
+    }
+}
