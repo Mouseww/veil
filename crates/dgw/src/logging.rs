@@ -5,7 +5,9 @@
 pub fn format_event(fields: &[(&str, &str)]) -> String {
     let mut map = serde_json::Map::new();
     for &(key, value) in fields {
-        redact_check(key);
+        if forbidden_key(key) {
+            continue;
+        }
         map.insert(key.to_string(), serde_json::Value::String(value.to_string()));
     }
     serde_json::Value::Object(map).to_string()
@@ -44,13 +46,11 @@ fn rotate_if_needed(dir: &std::path::Path, path: &std::path::Path) -> std::io::R
     Ok(())
 }
 
-fn redact_check(key: &str) {
-    match key.to_ascii_lowercase().as_str() {
-        "body" | "authorization" | "master_key" => {
-            panic!("refusing to log secret field {key}");
-        }
-        _ => {}
-    }
+fn forbidden_key(key: &str) -> bool {
+    matches!(
+        key.to_ascii_lowercase().as_str(),
+        "body" | "authorization" | "master_key" | "token" | "headers" | "plaintext"
+    )
 }
 
 #[cfg(test)]
@@ -76,5 +76,18 @@ mod tests {
             !line.contains(secret),
             "plaintext secret must not appear in logs: {line}"
         );
+    }
+
+    #[test]
+    fn forbidden_keys_are_dropped_not_panicked() {
+        let line = format_event(&[
+            ("path_template", "/v1/messages"),
+            ("body", "13800138000"),
+            ("authorization", "Bearer tok"),
+        ]);
+        assert!(line.contains("/v1/messages"));
+        assert!(!line.contains("13800138000"));
+        assert!(!line.contains("Bearer"));
+        assert!(!line.contains("body"));
     }
 }

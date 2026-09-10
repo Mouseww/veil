@@ -98,6 +98,31 @@ pub fn try_start(
     })
 }
 
+/// Spawn this binary as `dgw start --foreground` detached from the console.
+pub fn spawn_daemon(exe: &str) -> Result<(), Error> {
+    let mut cmd = std::process::Command::new(exe);
+    cmd.arg("start").arg("--foreground");
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+        const DETACHED_PROCESS: u32 = 0x00000008;
+        cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS);
+    }
+    cmd.spawn()?;
+    Ok(())
+}
+
+/// Block until the OS kills this process (used by `--foreground`).
+pub fn wait_forever() {
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(3600));
+    }
+}
+
 /// Kill the recorded pid only when its stored exe matches this binary, then
 /// delete the pid file. Missing file is success.
 pub fn stop(data_dir: &Path) -> Result<(), Error> {

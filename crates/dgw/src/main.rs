@@ -33,6 +33,23 @@ fn dispatch(cmd: &str, foreground: bool) -> Result<(), Box<dyn std::error::Error
 fn cmd_start(foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = default_data_dir();
     let cfg = Config::load(&data_dir)?;
+    if !foreground {
+        if let Some(existing) = process::read_pid(&data_dir)? {
+            if process::pid_is_alive(existing.pid) && existing.exe == process::current_exe() {
+                println!(
+                    "already running proxy={} management={}",
+                    existing.proxy_port, existing.management_port
+                );
+                return Ok(());
+            }
+        }
+        process::spawn_daemon(&process::current_exe())?;
+        println!(
+            "starting proxy={} management={}",
+            cfg.proxy_port, cfg.management_port
+        );
+        return Ok(());
+    }
     let outcome = process::try_start(
         &data_dir,
         cfg.proxy_port,
@@ -51,11 +68,9 @@ fn cmd_start(foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
             management_port,
         } => {
             println!("proxy={proxy_port} management={management_port}");
-            // Task 10: pid is written and we return immediately so cargo test
-            // never hangs. The real server loop is Task 11.
-            if foreground {
-                eprintln!("--foreground wrote pid and is exiting (server is Task 11)");
-            }
+            // Reverse-proxy bind is Task 11; stay alive so the pid file
+            // remains valid for stop/status.
+            process::wait_forever();
         }
     }
     Ok(())
