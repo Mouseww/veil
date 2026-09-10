@@ -22,6 +22,8 @@ pub struct Rule {
 pub enum Matcher {
     Regex(Regex),
     Dictionary(Vec<String>),
+    /// Tokenize and parse with [`std::net::IpAddr`].
+    Ip,
     #[cfg(test)]
     BlockUntilTimeout,
 }
@@ -96,6 +98,21 @@ impl Rule {
     pub fn with_timeout_ms(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = timeout_ms;
         self
+    }
+
+    /// Parse-based IPv4/IPv6 matcher.
+    pub fn ip(id: impl Into<String>, type_prefix: impl Into<String>, priority: i32) -> Self {
+        let id = id.into();
+        let name = id.clone();
+        Self {
+            id,
+            name,
+            type_prefix: type_prefix.into(),
+            enabled: true,
+            matcher: Matcher::Ip,
+            priority,
+            timeout_ms: DEFAULT_TIMEOUT_MS,
+        }
     }
 }
 
@@ -201,6 +218,7 @@ fn match_rule(rule: &Rule, text: &str, occupied: &Occupied) -> Option<Vec<(usize
             regex_spans(re, text, &gaps)
         }
         Matcher::Dictionary(words) => Some(dictionary_spans(text, words, occupied)),
+        Matcher::Ip => Some(ip_spans(text, occupied)),
         #[cfg(test)]
         Matcher::BlockUntilTimeout => {
             // Deterministic miss without spawning a worker thread.
@@ -228,6 +246,19 @@ fn regex_spans(re: &Regex, text: &str, gaps: &[(usize, usize)]) -> Option<Vec<(u
         }
     }
     Some(spans)
+}
+
+fn ip_spans(text: &str, occupied: &Occupied) -> Vec<(usize, usize)> {
+    let mut spans = Vec::new();
+    for (gs, ge) in occupied.gaps(text.len()) {
+        if gs >= ge {
+            continue;
+        }
+        for (s, e) in crate::ip::find_ip_spans(&text[gs..ge]) {
+            spans.push((gs + s, gs + e));
+        }
+    }
+    spans
 }
 
 fn dictionary_spans(text: &str, words: &[String], occupied: &Occupied) -> Vec<(usize, usize)> {
