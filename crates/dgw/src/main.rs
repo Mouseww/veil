@@ -1,25 +1,29 @@
 //! CLI: `dgw start [--foreground] | stop | status | ui`
-//!
-//! `start --foreground` currently loads config, writes the pid file, prints
-//! ports, and exits. The reverse-proxy server is Task 11.
+
+use std::sync::Arc;
 
 use dgw::config::Config;
 use dgw::data_dir::default_data_dir;
+use dgw::master_key::load_or_create;
 use dgw::process::{self, StartOutcome};
+use dgw::proxy::{router, AppState, UpstreamConfig};
+use dgw_store::SqliteStore;
+use tokio::net::TcpListener;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(String::as_str).unwrap_or("help");
     let foreground = args.iter().any(|a| a == "--foreground");
-    if let Err(e) = dispatch(cmd, foreground) {
+    if let Err(e) = dispatch(cmd, foreground).await {
         eprintln!("{e}");
         std::process::exit(1);
     }
 }
 
-fn dispatch(cmd: &str, foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
+async fn dispatch(cmd: &str, foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
     match cmd {
-        "start" => cmd_start(foreground),
+        "start" => cmd_start(foreground).await,
         "stop" => cmd_stop(),
         "status" => cmd_status(),
         "ui" => cmd_ui(),
@@ -30,7 +34,7 @@ fn dispatch(cmd: &str, foreground: bool) -> Result<(), Box<dyn std::error::Error
     }
 }
 
-fn cmd_start(foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
+async fn cmd_start(foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = default_data_dir();
     let cfg = Config::load(&data_dir)?;
     if !foreground {
@@ -62,16 +66,39 @@ fn cmd_start(foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
             management_port,
         } => {
             println!("already running proxy={proxy_port} management={management_port}");
+            Ok(())
         }
         StartOutcome::Started {
             proxy_port,
             management_port,
         } => {
             println!("proxy={proxy_port} management={management_port}");
-            // Reverse-proxy bind is Task 11; stay alive so the pid file
-            // remains valid for stop/status.
-            process::wait_forever();
+            serve(&data_dir, &cfg).await
         }
+    }
+}
+
+async fn serve(data_dir: &std::path::Path, cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let limit = (cfg.request_body_limit_mib.saturating_mul(1024 * 1024)) as usize;
+    let key = load_or_create(data_dir, cfg.mode)?;
+    let store = SqliteStore::open(data_dir.join("mappings.db"), &key)
+        .map_err(|e| format!("mapping store: {e}"))?;
+    let state = AppState::new(
+        Arc::new(store),
+        UpstreamConfig::from(cfg),
+        limit,
+    );
+    let proxy = router(state);
+    let mgmt = axum::Router::new().fallback(axum::routing::any(|| async {
+        axum::http::StatusCode::NOT_FOUND
+    }));
+    let proxy_bind = format!("{}:{}", cfg.bind, cfg.proxy_port);
+    let mgmt_bind = format!("{}:{}", cfg.bind, cfg.management_port);
+    let p = TcpListener::bind(&proxy_bind).await?;
+    let m = TcpListener::bind(&mgmt_bind).await?;
+    tokio::select! {
+        r = axum::serve(p, proxy) => r?,
+        r = axum::serve(m, mgmt) => r?,
     }
     Ok(())
 }

@@ -17,7 +17,7 @@ pub enum WalkError {
 pub fn desensitize_json(
     value: &Value,
     rules: &RuleSet,
-    store: &impl MappingStore,
+    store: &(impl MappingStore + ?Sized),
     creator: &Creator,
 ) -> Result<Value, WalkError> {
     map_string_values(value, &mut |text| {
@@ -27,7 +27,7 @@ pub fn desensitize_json(
 
 pub fn restore_json(
     value: &Value,
-    store: &impl MappingStore,
+    store: &(impl MappingStore + ?Sized),
     creator: &Creator,
 ) -> Result<Value, WalkError> {
     map_string_values(value, &mut |text| restore_string(text, store, creator))
@@ -60,7 +60,7 @@ fn map_string_values(
 fn desensitize_string(
     text: &str,
     rules: &RuleSet,
-    store: &impl MappingStore,
+    store: &(impl MappingStore + ?Sized),
     creator: &Creator,
 ) -> Result<String, WalkError> {
     let hits = rules.find_hits(text);
@@ -79,7 +79,7 @@ fn desensitize_string(
 
 fn restore_string(
     text: &str,
-    store: &impl MappingStore,
+    store: &(impl MappingStore + ?Sized),
     creator: &Creator,
 ) -> Result<String, WalkError> {
     let matches: Vec<_> = PLACEHOLDER_REGEX.find_iter(text).collect();

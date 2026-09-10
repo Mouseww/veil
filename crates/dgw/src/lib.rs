@@ -5,6 +5,7 @@ pub mod data_dir;
 pub mod logging;
 pub mod master_key;
 pub mod process;
+pub mod proxy;
 
 pub use config::{Config, Mode, RuleConfig};
 pub use data_dir::default_data_dir;
