@@ -31,5 +31,6 @@ axum = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 http-body-util = "0.1"
 bytes = "1"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["limit"] }

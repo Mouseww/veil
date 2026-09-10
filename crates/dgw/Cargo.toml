@@ -21,6 +21,7 @@ axum.workspace = true
 reqwest.workspace = true
 http-body-util.workspace = true
 bytes.workspace = true
+futures-util.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 http.workspace = true

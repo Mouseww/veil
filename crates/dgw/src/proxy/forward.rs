@@ -10,6 +10,7 @@ use dgw_engine::creator::creator_from_headers;
 use dgw_engine::mapping::MappingStore;
 use dgw_engine::rules::RuleSet;
 use dgw_engine::walk::{desensitize_json, WalkError};
+use super::sse::{restore_json_body, SseRestorer};
 use http_body_util::BodyExt;
 use serde_json::Value;
 
@@ -128,12 +129,19 @@ async fn proxy_inner(
         }
         response = response.header(name, value);
     }
+    let content_type = upstream
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     let bytes = upstream
         .bytes()
         .await
         .map_err(|_| (StatusCode::BAD_GATEWAY, "upstream body").into_response())?;
+    let out = restore_response(state, &headers, &content_type, &bytes)?;
     response
-        .body(Body::from(bytes))
+        .body(Body::from(out))
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "response").into_response())
 }
 
@@ -237,4 +245,34 @@ fn host_from_url(url: &str) -> Result<HeaderValue, ()> {
         None => host.to_string(),
     };
     HeaderValue::from_str(&value).map_err(|_| ())
+}
+
+fn restore_response(
+    state: &AppState,
+    req_headers: &HeaderMap,
+    content_type: &str,
+    bytes: &Bytes,
+) -> Result<Bytes, Response> {
+    let creator = creator_from_headers(req_headers);
+    if content_type.contains("text/event-stream") {
+        let text = String::from_utf8_lossy(bytes);
+        let mut restorer = SseRestorer::new(state.store.as_ref(), creator);
+        let restored = restorer.push(&text).and_then(|head| {
+            let tail = restorer.flush()?;
+            Ok(head + &tail)
+        });
+        match restored {
+            Ok(out) => Ok(Bytes::from(out)),
+            Err(_) => Ok(Bytes::from(
+                "event: error\ndata: {\"error\":{\"type\":\"dgw_restore_failed\"}}\n\n",
+            )),
+        }
+    } else if content_type.contains("json") || looks_like_json(req_headers, bytes) {
+        match restore_json_body(state.store.as_ref(), &creator, bytes) {
+            Ok(out) => Ok(out.into()),
+            Err(_) => Err((StatusCode::BAD_GATEWAY, "restore failed").into_response()),
+        }
+    } else {
+        Ok(bytes.clone())
+    }
 }

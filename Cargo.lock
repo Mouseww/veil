@@ -254,6 +254,7 @@ dependencies = [
  "bytes",
  "dgw-engine",
  "dgw-store",
+ "futures-util",
  "hex",
  "http",
  "http-body-util",

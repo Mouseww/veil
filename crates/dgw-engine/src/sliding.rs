@@ -6,13 +6,13 @@ use crate::walk::WalkError;
 /// Max tail buffer in bytes. Placeholders are at most 63 bytes; 96 is a bound.
 const MAX_TAIL: usize = 96;
 
-pub struct RestoreWindow<'a, S: MappingStore> {
+pub struct RestoreWindow<'a, S: MappingStore + ?Sized> {
     store: &'a S,
     creator: Creator,
     tail: String,
 }
 
-impl<'a, S: MappingStore> RestoreWindow<'a, S> {
+impl<'a, S: MappingStore + ?Sized> RestoreWindow<'a, S> {
     pub fn new(store: &'a S, creator: Creator) -> Self {
         Self {
             store,
