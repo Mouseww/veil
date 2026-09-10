@@ -69,7 +69,7 @@ pub async fn get_status(State(state): State<AdminState>, headers: HeaderMap) -> 
         .rev()
         .find_map(|e| e.error_class);
     Json(StatusBody {
-        product: "Desensitization Gateway",
+        product: "Veil",
         bind: cfg.bind,
         proxy_port: state.proxy_port,
         management_port: state.management_port,

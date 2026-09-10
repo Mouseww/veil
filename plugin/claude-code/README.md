@@ -1,5 +1,5 @@
-# dgw Claude Code plugin
+# Veil for Claude Code
 
-Install, then `/dgw start`. Sets user-level `ANTHROPIC_BASE_URL` to the local proxy.
-Official subscription OAuth is passed through unchanged.
-Disable auto-download with `DGW_NO_DOWNLOAD=1`.
+装上插件后，在对话里运行 `/dgw start`，再在终端执行 `dgw setup`，重启 Claude Code。
+
+官方订阅不用填 Key。失败时不会打断会话，只会提示当前没走脱敏。

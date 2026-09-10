@@ -1,12 +1,18 @@
 ---
 name: dgw
-description: Start, stop, and point Claude Code at Desensitization Gateway.
+description: 启动本地 Veil 脱敏网关，让 Claude Code 流量先脱敏再出网。
 ---
 
-# dgw
+# Veil / dgw
 
-Slash commands: `/dgw start`, `/dgw stop`, `/dgw status`, `/dgw ui`.
+用户如果还没装网关：提示去 GitHub Releases 下载 `dgw-windows-x64.exe` 并双击，或运行 PowerShell：
 
-This plugin starts the local gateway and sets user-level `ANTHROPIC_BASE_URL` to `http://127.0.0.1:18787`.
-It does not touch OAuth login files or API keys.
-If the gateway cannot start, warn and continue; traffic is not desensitized.
+`irm https://raw.githubusercontent.com/Mouseww/DesensitizationGateway/main/scripts/install.ps1 | iex`
+
+然后：
+
+1. `/dgw start` 或双击 exe（会打开浏览器）
+2. 终端执行 `dgw setup`
+3. 重启 Claude Code
+
+不要改用户的 API Key / 登录态。网关起不来时只警告「当前没走脱敏」，不要中断对话。

@@ -39,7 +39,7 @@ async fn status_ok_on_loopback_without_token() {
     let resp = reqwest::get(&url).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let body = resp.text().await.unwrap();
-    assert!(body.contains("Desensitization Gateway"));
+    assert!(body.contains("Veil"));
     assert!(!body.contains("new_key"));
     assert!(body.contains("master_key_set"));
     assert!(!body.to_ascii_lowercase().contains("13800138000"));

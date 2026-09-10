@@ -46,3 +46,6 @@ dt { color: var(--muted); }
 .chip { display: inline-block; border: 1px solid var(--accent); color: var(--accent); padding: 0 6px; font-size: 11px; }
 .kicker { color: var(--muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
 code { color: var(--accent); }
+ol.steps { padding-left: 1.2em; line-height: 1.6; }
+ol.steps li { margin: 16px 0; }
+.copybox { background: #1c1510; border: 1px dashed var(--line); padding: 10px 12px; overflow-x: auto; }
