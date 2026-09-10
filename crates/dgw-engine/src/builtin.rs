@@ -15,7 +15,7 @@ pub fn builtin_ruleset() -> RuleSet {
             Rule::regex(
                 "aksk",
                 "AKSK",
-                r"-----BEGIN [A-Z0-9 ]+PRIVATE KEY-----|AKIA[0-9A-Z]{16}|sk-ant-\S+|sk-[A-Za-z0-9_-]{20,}|Bearer eyJ\S+",
+                r"-----BEGIN [A-Z0-9 ]+PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]+PRIVATE KEY-----|AKIA[0-9A-Z]{16}|(?<![A-Za-z0-9])sk-ant-\S+|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|Bearer eyJ\S+",
                 200,
             ),
             Rule::regex(
@@ -110,5 +110,80 @@ mod tests {
             .find_hits("commit deadbeef")
             .iter()
             .all(|h| h.type_prefix != "IP"));
+        assert!(set
+            .find_hits("v1.2.3.4")
+            .iter()
+            .all(|h| h.type_prefix != "IP"));
+    }
+
+    fn ip_plaintexts(text: &str) -> Vec<String> {
+        builtin_ruleset()
+            .find_hits(text)
+            .into_iter()
+            .filter(|h| h.type_prefix == "IP")
+            .map(|h| h.plaintext)
+            .collect()
+    }
+
+    #[test]
+    fn ip_hits_assignment_quotes_at_json_and_sentence_punct() {
+        for (text, want) in [
+            ("src_ip=10.0.0.5", "10.0.0.5"),
+            ("Reach 10.0.0.5. Then stop.", "10.0.0.5"),
+            ("host '8.8.8.8'", "8.8.8.8"),
+            (r#""10.1.2.3""#, "10.1.2.3"),
+            ("admin@10.0.0.5", "10.0.0.5"),
+            (r#"{"ip":"8.8.8.8"}"#, "8.8.8.8"),
+            ("见 10.0.0.5。", "10.0.0.5"),
+        ] {
+            let values = ip_plaintexts(text);
+            assert!(
+                values.iter().any(|v| v == want),
+                "{text:?} expected IP {want:?}, got {values:?}"
+            );
+        }
+        assert!(ip_plaintexts("http://127.0.0.1:18787").is_empty());
+        assert!(ip_plaintexts("commit deadbeef").is_empty());
+    }
+
+    #[test]
+    fn pem_match_includes_body_through_end() {
+        let pem = "-----BEGIN RSA PRIVATE KEY-----
+MIIBOgIBAAJBAK8=
+-----END RSA PRIVATE KEY-----";
+        let hits = builtin_ruleset().find_hits(pem);
+        let aksk: Vec<_> = hits.iter().filter(|h| h.type_prefix == "AKSK").collect();
+        assert_eq!(aksk.len(), 1, "expected one AKSK hit, got {hits:?}");
+        assert!(
+            aksk[0].plaintext.contains("MIIBOgIBAAJBAK8="),
+            "PEM hit must include the base64 body, got {:?}",
+            aksk[0].plaintext
+        );
+        assert!(aksk[0].plaintext.contains("-----END RSA PRIVATE KEY-----"));
+        assert!(aksk[0]
+            .plaintext
+            .starts_with("-----BEGIN RSA PRIVATE KEY-----"));
+    }
+
+    #[test]
+    fn sk_requires_boundary_lookbehind() {
+        let set = builtin_ruleset();
+        assert!(
+            set.find_hits("task-abcdefghijklmnopqrstuvwxyz1234")
+                .iter()
+                .all(|h| h.type_prefix != "AKSK"),
+            "embedded sk- in task-... must not be AKSK"
+        );
+        let open_sk = set.find_hits("sk-abcdefghijklmnopqrstuvwxyz1234");
+        assert!(
+            open_sk.iter().any(|h| h.type_prefix == "AKSK"),
+            "boundary sk-<20+> must match, got {open_sk:?}"
+        );
+        let ant = set.find_hits("token sk-ant-api03-secret");
+        assert!(
+            ant.iter()
+                .any(|h| h.type_prefix == "AKSK" && h.plaintext.contains("sk-ant-")),
+            "boundary sk-ant- must match, got {ant:?}"
+        );
     }
 }
