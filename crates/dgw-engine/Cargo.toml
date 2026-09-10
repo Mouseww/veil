@@ -13,3 +13,4 @@ regex.workspace = true
 once_cell.workspace = true
 sha2.workspace = true
 hex.workspace = true
+http.workspace = true
