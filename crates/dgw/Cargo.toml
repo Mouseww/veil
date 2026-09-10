@@ -8,6 +8,7 @@ description = "Desensitization Gateway"
 [dependencies]
 dgw-engine = { path = "../dgw-engine" }
 serde.workspace = true
+serde_json.workspace = true
 toml.workspace = true
 thiserror.workspace = true
 hex.workspace = true

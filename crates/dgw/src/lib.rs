@@ -2,7 +2,9 @@
 
 pub mod config;
 pub mod data_dir;
+pub mod logging;
 pub mod master_key;
+pub mod process;
 
 pub use config::{Config, Mode, RuleConfig};
 pub use data_dir::default_data_dir;
@@ -24,6 +26,8 @@ pub enum Error {
     TomlDe(#[from] toml::de::Error),
     #[error("config serialize error: {0}")]
     TomlSer(#[from] toml::ser::Error),
+    #[error("json error: {0}")]
+    Json(#[from] serde_json::Error),
 }
 
 #[cfg(test)]
