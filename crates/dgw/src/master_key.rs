@@ -1,3 +1,5 @@
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::path::Path;
 
 use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD};
@@ -23,17 +25,40 @@ pub fn load_or_create(data_dir: &Path, mode: Mode) -> Result<[u8; 32], Error> {
         Ok(text) => parse_key(text.trim()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => match mode {
             Mode::Server => Err(Error::NoMasterKey),
-            Mode::Desktop => {
-                std::fs::create_dir_all(data_dir)?;
-                let mut key = [0u8; 32];
-                rand::thread_rng().fill_bytes(&mut key);
-                std::fs::write(&path, hex::encode(key))?;
-                restrict_secret_file(&path)?;
-                Ok(key)
-            }
+            Mode::Desktop => create_desktop_master_key(data_dir, &path),
         },
         Err(e) => Err(e.into()),
     }
+}
+
+fn create_desktop_master_key(data_dir: &Path, path: &Path) -> Result<[u8; 32], Error> {
+    std::fs::create_dir_all(data_dir)?;
+    let mut key = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut key);
+    match create_secret_file(path, hex::encode(key).as_bytes()) {
+        Ok(()) => Ok(key),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            // Another desktop first-start won the create_new race — load theirs.
+            let text = std::fs::read_to_string(path)?;
+            parse_key(text.trim())
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Create a secret file exclusively. On Unix the mode is 0600 from the start
+/// (`OpenOptionsExt::mode`). On Windows, `create_new` still prevents clobber races.
+pub(crate) fn create_secret_file(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+    let mut opts = OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut file = opts.open(path)?;
+    file.write_all(contents)?;
+    Ok(())
 }
 
 fn parse_key(raw: &str) -> Result<[u8; 32], Error> {
@@ -53,18 +78,6 @@ fn parse_key(raw: &str) -> Result<[u8; 32], Error> {
         }
     }
     Err(Error::InvalidMasterKey)
-}
-
-fn restrict_secret_file(path: &Path) -> Result<(), Error> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = std::fs::metadata(path)?.permissions();
-        perms.set_mode(0o600);
-        std::fs::set_permissions(path, perms)?;
-    }
-    let _ = path;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -109,5 +122,20 @@ mod tests {
         env.set("DGW_MASTER_KEY", hex::encode(env_key));
         let got = load_or_create(dir.path(), Mode::Server).unwrap();
         assert_eq!(got, env_key);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn desktop_master_key_is_mode_0600() {
+        use std::os::unix::fs::PermissionsExt;
+        let mut env = EnvLock::acquire();
+        env.unset("DGW_MASTER_KEY");
+        let dir = tempfile::tempdir().unwrap();
+        load_or_create(dir.path(), Mode::Desktop).unwrap();
+        let mode = std::fs::metadata(dir.path().join("master.key"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o600);
     }
 }

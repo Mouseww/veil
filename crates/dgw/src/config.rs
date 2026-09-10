@@ -4,6 +4,7 @@ use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::master_key::create_secret_file;
 use crate::Error;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -117,7 +118,16 @@ impl Config {
         if desktop && cfg.admin_token_hash.is_empty() {
             let token = generate_admin_token();
             cfg.admin_token_hash = hex::encode(Sha256::digest(token.as_bytes()));
-            std::fs::write(data_dir.join("admin.token"), &token)?;
+            let token_path = data_dir.join("admin.token");
+            match create_secret_file(&token_path, token.as_bytes()) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    // Another desktop first-start won the create_new race — load theirs.
+                    let existing = std::fs::read_to_string(&token_path)?;
+                    cfg.admin_token_hash = hex::encode(Sha256::digest(existing.trim().as_bytes()));
+                }
+                Err(e) => return Err(e.into()),
+            }
             dirty = true;
         }
         if dirty {
@@ -125,15 +135,21 @@ impl Config {
         }
 
         apply_env_overrides(&mut cfg);
-        cfg.request_body_limit_mib = cfg.request_body_limit_mib.min(128);
+        cfg.clamp();
         Ok(cfg)
     }
 
     pub fn save(&self, data_dir: &Path) -> Result<(), Error> {
         std::fs::create_dir_all(data_dir)?;
-        let text = toml::to_string_pretty(self)?;
+        let mut to_write = self.clone();
+        to_write.clamp();
+        let text = toml::to_string_pretty(&to_write)?;
         std::fs::write(data_dir.join("config.toml"), text)?;
         Ok(())
+    }
+
+    fn clamp(&mut self) {
+        self.request_body_limit_mib = self.request_body_limit_mib.min(128);
     }
 }
 
@@ -218,5 +234,19 @@ mod tests {
         assert_eq!(hash, cfg.admin_token_hash);
         let again = Config::load(dir.path()).unwrap();
         assert_eq!(again.admin_token_hash, cfg.admin_token_hash);
+    }
+
+    #[test]
+    fn request_body_limit_clamped_to_128() {
+        let mut env = EnvLock::acquire();
+        env.unset("DGW_MODE");
+        let dir = tempfile::tempdir().unwrap();
+        let mut cfg = Config::default();
+        cfg.request_body_limit_mib = 999;
+        cfg.save(dir.path()).unwrap();
+        assert_eq!(
+            Config::load(dir.path()).unwrap().request_body_limit_mib,
+            128
+        );
     }
 }
