@@ -151,7 +151,9 @@ const STR = {
   },
 } as const;
 
-type Dict = (typeof STR)["en"];
+type Dict = {
+  [K in keyof (typeof STR)["en"]]: (typeof STR)["en"][K] extends string ? string : (typeof STR)["en"][K];
+};
 
 const Ctx = createContext<{ lang: Lang; setLang: (l: Lang) => void; t: Dict }>({
   lang: "en",
@@ -180,7 +182,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
   };
-  const value = useMemo(() => ({ lang, setLang, t: STR[lang] }), [lang]);
+  const value = useMemo(() => ({ lang, setLang, t: STR[lang] as Dict }), [lang]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
