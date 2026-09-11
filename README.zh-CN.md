@@ -58,7 +58,9 @@ veil setup --upstream https://your-gateway.example
 
 也可以打开管理页的 **「上游」** 标签粘贴（`http://127.0.0.1:18788`）。
 
-**OpenAI 兼容客户端：** 把客户端 Base URL 设成 `http://127.0.0.1:18787`，再在同一页填 Veil 的 OpenAI 上游。密钥仍留在客户端，Veil 原样转发。
+**OpenAI 兼容客户端：** 把客户端 Base URL 设成 `http://127.0.0.1:18787`，再在同一页填 Veil 的 OpenAI 上游。
+
+**鉴权透传。** API Key / Token 用**上游那份**，填在 Claude Code 里（或 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`）。Veil 会原样转发 `Authorization`、`x-api-key`、`api-key`，不会再要你一份 Key。
 
 ## 会挡什么
 

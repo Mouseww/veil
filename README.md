@@ -58,7 +58,9 @@ veil setup --upstream https://your-gateway.example
 
 You can also paste the URL in the console tab **Upstream** (`http://127.0.0.1:18788`).
 
-**OpenAI-compatible clients:** set the client's Base URL to `http://127.0.0.1:18787`, and set Veil's OpenAI upstreams in that same console tab. Keys stay in the client; Veil forwards them.
+**OpenAI-compatible clients:** set the client's Base URL to `http://127.0.0.1:18787`, and set Veil's OpenAI upstreams in that same console tab.
+
+**Auth is pass-through.** Put the *upstream* API key / token in Claude Code (or `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). Veil forwards `Authorization`, `x-api-key`, and `api-key` unchanged. It never asks you for a second key.
 
 ## What it hides
 
