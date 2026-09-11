@@ -17,18 +17,22 @@ async fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(String::as_str).unwrap_or("start");
     let foreground = args.iter().any(|a| a == "--foreground");
-    if let Err(e) = dispatch(cmd, foreground).await {
+    if let Err(e) = dispatch(cmd, &args, foreground).await {
         eprintln!("{e}");
         std::process::exit(1);
     }
 }
 
-async fn dispatch(cmd: &str, foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
+async fn dispatch(
+    cmd: &str,
+    args: &[String],
+    foreground: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     match cmd {
         "start" => cmd_start(foreground).await,
         "stop" => cmd_stop(),
         "status" => cmd_status(),
-        "setup" => cmd_setup(),
+        "setup" => cmd_setup(args),
         "ui" => cmd_ui(true),
         "help" | "-h" | "--help" => {
             print_help();
@@ -51,7 +55,7 @@ fn print_help() {
     eprintln!();
     eprintln!("  veil start              start in background");
     eprintln!("  veil start --foreground");
-    eprintln!("  veil setup              write Claude Code user settings");
+    eprintln!("  veil setup [--upstream URL]   point Claude Code at Veil");
     eprintln!("  veil ui                 open the console");
     eprintln!("  veil status");
     eprintln!("  veil stop");
@@ -177,16 +181,39 @@ fn cmd_ui(open: bool) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn cmd_setup() -> Result<(), Box<dyn std::error::Error>> {
+fn flag_value(args: &[String], name: &str) -> Option<String> {
+    args.windows(2).find_map(|w| {
+        if w[0] == name {
+            Some(w[1].clone())
+        } else {
+            None
+        }
+    })
+}
+
+fn cmd_setup(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     let path = setup::claude_settings_path();
     let prev = setup::write_claude_base_url(&path, DEFAULT_PROXY_URL)?;
+    let explicit = flag_value(args, "--upstream");
+    let chain = explicit.as_deref().or(prev.as_deref());
+    let data_dir = default_data_dir();
+    let mut cfg = Config::load(&data_dir)?;
+    let chained = setup::apply_chained_upstream(&mut cfg, chain);
+    if chained {
+        cfg.save(&data_dir)?;
+    }
     println!("wrote Claude Code user settings:");
     println!("  {}", path.display());
     println!("  ANTHROPIC_BASE_URL={DEFAULT_PROXY_URL}");
-    if let Some(p) = prev {
-        println!("  previous upstream noted: {p}");
+    if chained {
+        println!("  custom upstream: {}", cfg.anthropic_upstream);
+        println!("  (Veil will call that API after redacting)");
+    } else {
+        println!("  official Anthropic API (default). For a third-party gateway:");
+        println!("    veil setup --upstream https://your-api.example");
+        println!("  or set it in the console tab 上游 / Upstream.");
     }
     println!();
-    println!("Restart Claude Code. Login stays as-is.");
+    println!("Restart Claude Code. Login / API keys stay as-is.");
     Ok(())
 }

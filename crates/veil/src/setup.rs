@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
 
+use crate::config::Config;
 use crate::Error;
 
 pub const DEFAULT_PROXY_URL: &str = "http://127.0.0.1:18787";
@@ -48,6 +49,19 @@ pub fn apply_settings_json(
     Ok((serde_json::to_string_pretty(&root)?, save))
 }
 
+/// If the client already pointed at a custom API, make that Veil's Anthropic upstream.
+pub fn apply_chained_upstream(cfg: &mut Config, previous: Option<&str>) -> bool {
+    let Some(url) = previous
+        .map(str::trim)
+        .filter(|u| !u.is_empty() && *u != DEFAULT_PROXY_URL)
+    else {
+        return false;
+    };
+    cfg.saved_client_anthropic_base_url = Some(url.to_string());
+    cfg.anthropic_upstream = url.to_string();
+    true
+}
+
 pub fn write_claude_base_url(path: &Path, proxy_url: &str) -> Result<Option<String>, Error> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
@@ -64,7 +78,10 @@ pub fn write_claude_base_url(path: &Path, proxy_url: &str) -> Result<Option<Stri
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_settings_json, write_claude_base_url, DEFAULT_PROXY_URL};
+    use super::{
+        apply_chained_upstream, apply_settings_json, write_claude_base_url, DEFAULT_PROXY_URL,
+    };
+    use crate::config::Config;
 
     #[test]
     fn empty_settings_gets_proxy_url() {
@@ -98,5 +115,21 @@ mod tests {
         write_claude_base_url(&path, DEFAULT_PROXY_URL).unwrap();
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains(DEFAULT_PROXY_URL));
+    }
+
+    #[test]
+    fn chains_custom_upstream_and_ignores_local_proxy() {
+        let mut cfg = Config::default();
+        assert!(apply_chained_upstream(
+            &mut cfg,
+            Some("https://litellm.example/v1")
+        ));
+        assert_eq!(cfg.anthropic_upstream, "https://litellm.example/v1");
+        assert_eq!(
+            cfg.saved_client_anthropic_base_url.as_deref(),
+            Some("https://litellm.example/v1")
+        );
+        assert!(!apply_chained_upstream(&mut cfg, Some(DEFAULT_PROXY_URL)));
+        assert!(!apply_chained_upstream(&mut cfg, Some("")));
     }
 }

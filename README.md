@@ -40,6 +40,26 @@ veil setup
 
 Proxy: `http://127.0.0.1:18787`  ·  Console: `http://127.0.0.1:18788`
 
+## Official Claude vs a custom API
+
+The installer only starts Veil. **Where traffic goes next** is the upstream.
+
+**Official Anthropic subscription** (Pro / Max / Team login in Claude Code): `veil setup` is enough. Your login is untouched. Veil talks to `https://api.anthropic.com`.
+
+**Third-party / company Anthropic-compatible API** (LiteLLM, a reverse proxy, a private `ANTHROPIC_BASE_URL`):
+
+1. Start Veil (`veil` or the installer).
+2. If Claude Code already had a custom Base URL, `veil setup` **keeps it** as Veil's upstream and points the client at localhost.
+3. If it never had one, say so explicitly:
+
+```bat
+veil setup --upstream https://your-gateway.example
+```
+
+You can also paste the URL in the console tab **Upstream** (`http://127.0.0.1:18788`).
+
+**OpenAI-compatible clients:** set the client's Base URL to `http://127.0.0.1:18787`, and set Veil's OpenAI upstreams in that same console tab. Keys stay in the client; Veil forwards them.
+
 ## What it hides
 
 Built-in: phone numbers, national IDs, parseable IPs (public included, loopback allowlisted), PEM blocks, `sk-` tokens, connection strings. Add your own regex or dictionary in the console. Dry-run a sample before you save.
