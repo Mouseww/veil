@@ -1,28 +1,28 @@
-# Veil — a mask for your prompts
+# Veil — a curtain in the doorway
 
-Talking to a model is sending text to someone else's house. Passwords, phone numbers, database URLs go with it.
+Talking to a model sends text off this machine. Passwords, phone numbers, database URLs go with it.
 
-**Veil is a veil.** Secrets put on a mask before they leave. The mask comes off when the answer comes home. You still see the real words. The model only ever sees the mask.
+**Veil is a curtain on the way out.** Secrets leave under an alias. When the reply comes in, the alias is swapped back. You still read the real words. Outside, the model only ever saw the alias.
 
 [中文说明](README.zh-CN.md) · [Releases](https://github.com/Mouseww/veil/releases/latest) · Apache-2.0 · no telemetry
 
-Any app that can set a Base URL can wear it: Claude Code, Cursor, Codex, Trae, your own script, a company relay. Not a closed list. Hat tip to [Maskit](https://github.com/xiaYuTian11/maskit).
+Any app that can set a Base URL can walk through it: Claude Code, Cursor, Codex, Trae, your own script, a company relay. Not a closed list.
 
 ---
 
-## On with the mask, off with the mask
+## Alias out, real name back
 
-| | At home (you) | The mask | Outside (the model) |
+| | Inside (you) | Alias (placeholder) | Outside (the model) |
 |---|---|---|---|
-| Leaving | `mysql://root:Pass123@10.1.2.3/app`, `13800138000` | `{{CONNSTR_…}}` `{{PHONE_…}}` | can reason, cannot see the face |
-| Coming back | you read the real DSN and number | the same mask is always the same face | it never knew there was a face |
+| Outbound | `mysql://root:Pass123@10.1.2.3/app`, `13800138000` | `{{CONNSTR_…}}` `{{PHONE_…}}` | can reason, never sees the original |
+| Inbound | you read the real DSN and number | the same alias is the same person all chat long | it thought it was discussing the alias |
 
-Same secret, same mask, all conversation long.
+Same secret, same alias, whole conversation.
 
-Keys stay in your app. Veil masks the **body**, not the ID card (auth headers pass through).
+Keys stay in your app. Veil aliases the **body**, not the ID card (auth headers pass through).
 
 ```
-your tool  --change Base URL-->  Veil on localhost  --then out-->  vendor / relay / LiteLLM
+your tool  --change Base URL-->  curtain on localhost  --then out-->  vendor / relay / LiteLLM
 ```
 
 ---
