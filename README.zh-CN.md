@@ -44,7 +44,7 @@ irm https://raw.githubusercontent.com/Mouseww/veil/main/scripts/install.ps1 | ie
 veil setup
 ```
 
-勾选你正在用的软件，重启它们，照常聊天。官方 Claude 登录不用另填 Key。
+勾选你正在用的软件。Veil 会读走每个软件**现在的 API 地址**（官方或自定义中转都行），给它单独开一个本机端口，再把软件指过来。不同工具、不同上游，互不覆盖。然后重启这些软件，照常聊天。官方 Claude 登录不用另填 Key。
 
 也可以去 [Releases](https://github.com/Mouseww/veil/releases/latest) 下载 `veil-windows-x64.exe` 双击，效果一样。
 

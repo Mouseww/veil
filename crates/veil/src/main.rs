@@ -86,10 +86,15 @@ fn print_ready(cfg: &Config) {
     let ui = ui_url(cfg);
     println!("Veil is running");
     println!("  console: {ui}");
-    println!("  proxy:   {DEFAULT_PROXY_URL}");
+    println!("  proxy:   {DEFAULT_PROXY_URL}  (default)");
+    for r in &cfg.routes {
+        println!(
+            "  {:<12} http://127.0.0.1:{}  →  {}",
+            r.id, r.port, r.upstream
+        );
+    }
     println!();
-    println!("Next:  veil setup");
-    println!("   or set ANTHROPIC_BASE_URL={DEFAULT_PROXY_URL}");
+    println!("Next:  veil setup   (reads each app's current API URL)");
 }
 
 async fn cmd_start(foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
@@ -136,7 +141,6 @@ async fn serve(data_dir: &std::path::Path, cfg: &Config) -> Result<(), Box<dyn s
     let traffic = TrafficLog::default();
     let state = AppState::new(Arc::new(store), UpstreamConfig::from(cfg), limit)
         .with_traffic(traffic.clone());
-    let proxy = router(state);
     let loopback = cfg.bind == "127.0.0.1" || cfg.bind == "localhost" || cfg.bind == "::1";
     let admin = AdminState {
         data_dir: data_dir.to_path_buf(),
@@ -151,6 +155,21 @@ async fn serve(data_dir: &std::path::Path, cfg: &Config) -> Result<(), Box<dyn s
     let mgmt_bind = format!("{}:{}", cfg.bind, cfg.management_port);
     let p = TcpListener::bind(&proxy_bind).await?;
     let m = TcpListener::bind(&mgmt_bind).await?;
+    let mut _route_servers = Vec::new();
+    for route in &cfg.routes {
+        if route.port == cfg.proxy_port {
+            continue;
+        }
+        let bind = format!("{}:{}", cfg.bind, route.port);
+        let listener = TcpListener::bind(&bind).await?;
+        let mut st = state.clone();
+        st.upstream = UpstreamConfig::for_route(cfg, route);
+        let app = router(st);
+        _route_servers.push(tokio::spawn(
+            async move { axum::serve(listener, app).await },
+        ));
+    }
+    let proxy = router(state);
     tokio::select! {
         r = axum::serve(p, proxy) => r?,
         r = axum::serve(m, mgmt) => r?,
@@ -258,26 +277,43 @@ fn cmd_setup(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let explicit = flag_value(args, "--upstream");
-    let mut previous = explicit.clone();
-    println!("proxy {DEFAULT_PROXY_URL}");
-    for id in &ids {
-        let r = clients::apply_client(id, DEFAULT_PROXY_URL)?;
-        println!("  {}  {}", r.id, r.path.display());
-        if previous.is_none() {
-            previous = r.previous;
-        }
-    }
     let data_dir = default_data_dir();
     let mut cfg = Config::load(&data_dir)?;
-    let chained = setup::apply_chained_upstream(&mut cfg, previous.as_deref());
-    if chained {
-        cfg.save(&data_dir)?;
-        println!("  custom upstream: {}", cfg.anthropic_upstream);
-    } else {
-        println!("  upstream: official APIs (override with --upstream URL or console 上游)");
+    if let Some(url) = explicit.as_deref() {
+        setup::apply_chained_upstream(&mut cfg, Some(url));
     }
+    println!("each app keeps its own upstream behind a local port");
+    for id in &ids {
+        let spec = clients::spec(id).expect("resolved id");
+        let peeked = clients::peek_previous(id);
+        let upstream = if let Some(prev) = peeked.as_deref() {
+            setup::origin_from_base(prev)
+        } else if let Some(existing) = cfg.routes.iter().find(|r| r.id == *id) {
+            existing.upstream.clone()
+        } else if let Some(url) = explicit.as_deref() {
+            setup::origin_from_base(url)
+        } else if spec.kind == "anthropic" {
+            cfg.anthropic_upstream.clone()
+        } else {
+            cfg.openai_completions_upstream.clone()
+        };
+        let route = cfg.upsert_route(id, spec.label, spec.kind, &upstream);
+        let local = format!("http://127.0.0.1:{}", route.port);
+        let r = clients::apply_client(id, &local)?;
+        println!(
+            "  {}  {}  →  {}  ({})",
+            r.id,
+            local,
+            route.upstream,
+            r.path.display()
+        );
+    }
+    cfg.save(&data_dir)?;
     println!();
-    println!("Restart the selected apps. API keys stay in the client; Veil pass-throughs them.");
+    println!(
+        "Restart the selected apps. Restart Veil if it was already running, so new ports listen."
+    );
+    println!("API keys stay in the client; Veil pass-throughs them.");
     Ok(())
 }
 

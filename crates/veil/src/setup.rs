@@ -39,7 +39,7 @@ pub fn apply_settings_json(
         .and_then(|v| v.as_str())
         .map(str::to_string);
     let save = match previous.as_deref() {
-        Some(u) if !u.is_empty() && u != proxy_url => Some(u.to_string()),
+        Some(u) if !u.is_empty() && !is_local_proxy(u) => Some(u.to_string()),
         _ => None,
     };
     env_obj.insert(
@@ -49,11 +49,25 @@ pub fn apply_settings_json(
     Ok((serde_json::to_string_pretty(&root)?, save))
 }
 
+pub fn is_local_proxy(url: &str) -> bool {
+    let u = url.trim().to_ascii_lowercase();
+    u.contains("127.0.0.1:187") || u.contains("localhost:187") || u.contains("[::1]:187")
+}
+
+/// Strip trailing slash and `/v1` so we store an origin Veil can append paths to.
+pub fn origin_from_base(url: &str) -> String {
+    url.trim()
+        .trim_end_matches('/')
+        .trim_end_matches("/v1")
+        .trim_end_matches('/')
+        .to_string()
+}
+
 /// If the client already pointed at a custom API, make that Veil's Anthropic upstream.
 pub fn apply_chained_upstream(cfg: &mut Config, previous: Option<&str>) -> bool {
     let Some(url) = previous
         .map(str::trim)
-        .filter(|u| !u.is_empty() && *u != DEFAULT_PROXY_URL)
+        .filter(|u| !u.is_empty() && !is_local_proxy(u))
     else {
         return false;
     };
@@ -137,6 +151,20 @@ mod tests {
             Some("https://litellm.example/v1")
         );
         assert!(!apply_chained_upstream(&mut cfg, Some(DEFAULT_PROXY_URL)));
+        assert!(!apply_chained_upstream(
+            &mut cfg,
+            Some("http://127.0.0.1:18791")
+        ));
         assert!(!apply_chained_upstream(&mut cfg, Some("")));
+    }
+
+    #[test]
+    fn origin_strips_v1_and_detects_local_ports() {
+        assert_eq!(
+            super::origin_from_base("https://relay.example/v1/"),
+            "https://relay.example"
+        );
+        assert!(super::is_local_proxy("http://127.0.0.1:18793/v1"));
+        assert!(!super::is_local_proxy("https://api.anthropic.com"));
     }
 }

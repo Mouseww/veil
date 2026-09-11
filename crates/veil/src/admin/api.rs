@@ -264,6 +264,8 @@ pub struct UpstreamBody {
     pub anthropic_upstream: String,
     pub openai_completions_upstream: String,
     pub openai_responses_upstream: String,
+    #[serde(default)]
+    pub routes: Vec<crate::config::ClientRoute>,
 }
 
 pub async fn get_upstream(
@@ -282,6 +284,7 @@ pub async fn get_upstream(
         anthropic_upstream: cfg.anthropic_upstream,
         openai_completions_upstream: cfg.openai_completions_upstream,
         openai_responses_upstream: cfg.openai_responses_upstream,
+        routes: cfg.routes,
     })
     .into_response()
 }
@@ -298,6 +301,15 @@ pub async fn put_upstream(
     cfg.anthropic_upstream = body.anthropic_upstream;
     cfg.openai_completions_upstream = body.openai_completions_upstream;
     cfg.openai_responses_upstream = body.openai_responses_upstream;
+    if !body.routes.is_empty() {
+        for incoming in body.routes {
+            if let Some(row) = cfg.routes.iter_mut().find(|r| r.id == incoming.id) {
+                if !incoming.upstream.is_empty() {
+                    row.upstream = incoming.upstream;
+                }
+            }
+        }
+    }
     if let Err(e) = cfg.save(&state.data_dir) {
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }

@@ -44,6 +44,30 @@ fn bool_true() -> bool {
     true
 }
 
+/// One coding app → one local port → one (often custom) upstream.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ClientRoute {
+    pub id: String,
+    pub label: String,
+    /// anthropic | openai | auto
+    pub kind: String,
+    pub port: u16,
+    pub upstream: String,
+}
+
+impl Default for ClientRoute {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            label: String::new(),
+            kind: "auto".into(),
+            port: 18791,
+            upstream: String::new(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -64,6 +88,8 @@ pub struct Config {
     pub tls_key_path: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub saved_client_anthropic_base_url: Option<String>,
+    #[serde(default)]
+    pub routes: Vec<ClientRoute>,
     #[serde(default)]
     pub rules: Vec<RuleConfig>,
     #[serde(default = "default_allowlist")]
@@ -96,6 +122,7 @@ impl Default for Config {
             tls_cert_path: None,
             tls_key_path: None,
             saved_client_anthropic_base_url: None,
+            routes: Vec::new(),
             rules: Vec::new(),
             allowlist: default_allowlist(),
         }
@@ -146,6 +173,40 @@ impl Config {
         let text = toml::to_string_pretty(&to_write)?;
         std::fs::write(data_dir.join("config.toml"), text)?;
         Ok(())
+    }
+
+    pub fn next_route_port(&self) -> u16 {
+        let mut used = vec![self.proxy_port, self.management_port];
+        used.extend(self.routes.iter().map(|r| r.port));
+        (18791u16..18850)
+            .find(|p| !used.contains(p))
+            .unwrap_or(18791)
+    }
+
+    pub fn upsert_route(
+        &mut self,
+        id: &str,
+        label: &str,
+        kind: &str,
+        upstream: &str,
+    ) -> ClientRoute {
+        if let Some(existing) = self.routes.iter_mut().find(|r| r.id == id) {
+            existing.label = label.into();
+            existing.kind = kind.into();
+            if !upstream.is_empty() {
+                existing.upstream = upstream.into();
+            }
+            return existing.clone();
+        }
+        let route = ClientRoute {
+            id: id.into(),
+            label: label.into(),
+            kind: kind.into(),
+            port: self.next_route_port(),
+            upstream: upstream.into(),
+        };
+        self.routes.push(route.clone());
+        route
     }
 
     fn clamp(&mut self) {
@@ -200,6 +261,29 @@ mod tests {
         assert_eq!(back.request_body_limit_mib, 32);
         assert_eq!(back.bind, "127.0.0.1");
         assert_eq!(back.mapping_cap_per_creator, 100_000);
+    }
+
+    #[test]
+    fn each_app_gets_its_own_port() {
+        let mut cfg = Config::default();
+        let a = cfg.upsert_route(
+            "claude",
+            "Claude Code",
+            "anthropic",
+            "https://relay-a.example",
+        );
+        let b = cfg.upsert_route("codex", "Codex", "openai", "https://relay-b.example");
+        assert_eq!(a.port, 18791);
+        assert_eq!(b.port, 18792);
+        assert_ne!(a.upstream, b.upstream);
+        let a2 = cfg.upsert_route(
+            "claude",
+            "Claude Code",
+            "anthropic",
+            "https://relay-a2.example",
+        );
+        assert_eq!(a2.port, 18791);
+        assert_eq!(a2.upstream, "https://relay-a2.example");
     }
 
     #[test]

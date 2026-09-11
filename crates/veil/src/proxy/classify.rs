@@ -47,6 +47,34 @@ impl From<&Config> for UpstreamConfig {
     }
 }
 
+impl UpstreamConfig {
+    pub fn for_route(cfg: &Config, route: &crate::config::ClientRoute) -> Self {
+        let u = route.upstream.trim();
+        let origin = if u.is_empty() {
+            return Self::from(cfg);
+        } else {
+            u.trim_end_matches('/').to_string()
+        };
+        match route.kind.as_str() {
+            "anthropic" => Self {
+                anthropic_upstream: origin,
+                openai_completions_upstream: cfg.openai_completions_upstream.clone(),
+                openai_responses_upstream: cfg.openai_responses_upstream.clone(),
+            },
+            "openai" => Self {
+                anthropic_upstream: cfg.anthropic_upstream.clone(),
+                openai_completions_upstream: origin.clone(),
+                openai_responses_upstream: origin,
+            },
+            _ => Self {
+                anthropic_upstream: origin.clone(),
+                openai_completions_upstream: origin.clone(),
+                openai_responses_upstream: origin,
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{classify, ProtocolFamily};

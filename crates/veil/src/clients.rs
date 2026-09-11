@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{Map, Value as Json};
 use toml::Value as Toml;
 
-use crate::setup::DEFAULT_PROXY_URL;
+use crate::setup::{self};
 use crate::Error;
 
 #[derive(Clone, Copy, Debug)]
@@ -11,6 +11,8 @@ pub struct ClientSpec {
     pub id: &'static str,
     pub label: &'static str,
     pub aliases: &'static [&'static str],
+    /// anthropic | openai | auto
+    pub kind: &'static str,
 }
 
 pub const CLIENTS: &[ClientSpec] = &[
@@ -18,36 +20,43 @@ pub const CLIENTS: &[ClientSpec] = &[
         id: "claude",
         label: "Claude Code",
         aliases: &["claude-code"],
+        kind: "anthropic",
     },
     ClientSpec {
         id: "codex",
         label: "Codex",
         aliases: &["openai-codex"],
+        kind: "openai",
     },
     ClientSpec {
         id: "pi",
         label: "PI Agent",
         aliases: &["pi-agent"],
+        kind: "auto",
     },
     ClientSpec {
         id: "codebuddy",
         label: "CodeBuddy",
         aliases: &["workbuddy", "code-buddy"],
+        kind: "auto",
     },
     ClientSpec {
         id: "grok",
         label: "Grok Builder",
         aliases: &["grok-builder", "xai"],
+        kind: "openai",
     },
     ClientSpec {
         id: "hermes",
         label: "Hermes",
         aliases: &["herness"],
+        kind: "auto",
     },
     ClientSpec {
         id: "trae",
         label: "Trae",
         aliases: &["trae-cn"],
+        kind: "auto",
     },
 ];
 
@@ -81,6 +90,60 @@ pub fn resolve_ids(raw: &str) -> Result<Vec<&'static str>, Error> {
         }
     }
     Ok(out)
+}
+
+pub fn spec(id: &str) -> Option<&'static ClientSpec> {
+    CLIENTS.iter().find(|c| c.id == id)
+}
+
+/// Read the tool's current Base URL without writing.
+pub fn peek_previous(id: &str) -> Option<String> {
+    let raw = match id {
+        "claude" => peek_json_env(&crate::setup::claude_settings_path(), "ANTHROPIC_BASE_URL"),
+        "codex" => {
+            let text = std::fs::read_to_string(home().join(".codex").join("config.toml")).ok()?;
+            toml_table_key(&text, "model_providers.custom", "base_url")
+        }
+        "pi" => peek_json_field(&home().join(".pi").join("settings.json"), "baseUrl"),
+        "grok" => peek_json_field(&home().join(".grok").join("config.json"), "baseUrl"),
+        "hermes" => peek_json_field(&home().join(".hermes").join("config.json"), "baseUrl"),
+        "codebuddy" => peek_codebuddy(),
+        "trae" => peek_trae(),
+        _ => None,
+    }?;
+    let raw = raw.trim().to_string();
+    if raw.is_empty() || setup::is_local_proxy(&raw) {
+        None
+    } else {
+        Some(raw)
+    }
+}
+
+fn peek_json_env(path: &Path, key: &str) -> Option<String> {
+    let v: Json = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
+    v.get("env")?.get(key)?.as_str().map(str::to_string)
+}
+
+fn peek_json_field(path: &Path, key: &str) -> Option<String> {
+    let v: Json = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
+    v.get(key)?.as_str().map(str::to_string)
+}
+
+fn peek_vscode(product: &str) -> Option<String> {
+    let path = vscode_user_dir(product)?.join("settings.json");
+    let v: Json = serde_json::from_str(&std::fs::read_to_string(path).ok()?).ok()?;
+    ["openai.baseUrl", "openai.baseURL", "anthropic.baseUrl"]
+        .into_iter()
+        .find_map(|k| v.get(k).and_then(|x| x.as_str()).map(str::to_string))
+}
+
+fn peek_trae() -> Option<String> {
+    peek_vscode("Trae CN").or_else(|| peek_vscode("Trae"))
+}
+
+fn peek_codebuddy() -> Option<String> {
+    peek_vscode("CodeBuddy")
+        .or_else(|| peek_json_field(&home().join(".codebuddy").join("settings.json"), "baseUrl"))
 }
 
 pub fn detected_ids() -> Vec<&'static str> {
@@ -178,7 +241,7 @@ fn merge_json_proxy(existing: &str, proxy: &str) -> Result<(String, Option<Strin
     obj.insert("baseUrl".into(), Json::String(openai.clone()));
     obj.insert("anthropicBaseUrl".into(), Json::String(proxy.into()));
     obj.insert("openaiBaseUrl".into(), Json::String(openai));
-    let save = prev.filter(|u| !u.is_empty() && u != proxy && !u.starts_with(DEFAULT_PROXY_URL));
+    let save = prev.filter(|u| !u.is_empty() && !setup::is_local_proxy(u));
     Ok((serde_json::to_string_pretty(&root)?, save))
 }
 
@@ -213,7 +276,7 @@ fn merge_vscode_settings(existing: &str, proxy: &str) -> Result<(String, Option<
     let openai = openai_base(proxy);
     obj.insert("openai.baseUrl".into(), Json::String(openai.clone()));
     obj.insert("anthropic.baseUrl".into(), Json::String(proxy.into()));
-    let save = prev.filter(|u| !u.is_empty() && !u.starts_with(DEFAULT_PROXY_URL));
+    let save = prev.filter(|u| !u.is_empty() && !setup::is_local_proxy(u));
     Ok((serde_json::to_string_pretty(&root)?, save))
 }
 
@@ -277,7 +340,7 @@ fn apply_codex(proxy: &str) -> Result<ApplyResult, Error> {
         &openai,
     );
     std::fs::write(&path, next)?;
-    let save = prev.filter(|u| !u.is_empty() && !u.starts_with(DEFAULT_PROXY_URL));
+    let save = prev.filter(|u| !u.is_empty() && !setup::is_local_proxy(u));
     Ok(ApplyResult {
         id: "codex".into(),
         path,

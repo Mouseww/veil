@@ -29,6 +29,14 @@ export type TrafficEvent = {
   creator_prefix8: string;
 };
 
+export type ClientRoute = {
+  id: string;
+  label: string;
+  kind: string;
+  port: number;
+  upstream: string;
+};
+
 export type StatusBody = {
   product: string;
   bind: string;
@@ -72,8 +80,8 @@ export const api = {
   dryRun: (text: string) => req<DryHit[]>("/api/rules/dry-run", { method: "POST", body: JSON.stringify({ text }) }),
   allowlist: () => req<string[]>("/api/allowlist"),
   putAllowlist: (list: string[]) => req<void>("/api/allowlist", { method: "PUT", body: JSON.stringify(list) }),
-  upstream: () => req<{ anthropic_upstream: string; openai_completions_upstream: string; openai_responses_upstream: string }>("/api/upstream"),
-  putUpstream: (u: { anthropic_upstream: string; openai_completions_upstream: string; openai_responses_upstream: string }) =>
+  upstream: () => req<{ anthropic_upstream: string; openai_completions_upstream: string; openai_responses_upstream: string; routes?: ClientRoute[] }>("/api/upstream"),
+  putUpstream: (u: { anthropic_upstream: string; openai_completions_upstream: string; openai_responses_upstream: string; routes?: ClientRoute[] }) =>
     req<void>("/api/upstream", { method: "PUT", body: JSON.stringify(u) }),
   putSettings: (s: { mapping_ttl_days?: number; request_body_limit_mib?: number }) =>
     req<void>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),
