@@ -1,11 +1,13 @@
 import type { DryHit } from "./api";
+import { useT } from "./i18n";
 
 export function DryRun({ sample, hits }: { sample: string; hits: DryHit[] }) {
+  const { t } = useT();
   return (
     <div className="dry">
-      <div className="kicker">dry-run / sample stays local</div>
+      <div className="kicker">{t.dryKicker}</div>
       {hits.length === 0 ? (
-        <p className="muted">no hits</p>
+        <p className="muted">{t.noHits}</p>
       ) : (
         <ul>
           {hits.map((h, i) => (

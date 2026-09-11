@@ -1,51 +1,90 @@
 :root {
   color-scheme: dark;
-  --bg: #140f0a;
-  --ink: #f4e4c1;
-  --muted: #9a7f5a;
-  --line: #3a2a18;
-  --accent: #ffb703;
+  --bg: #100e0b;
+  --bg-2: #1a1612;
+  --ink: #f3e6d0;
+  --muted: #9a8464;
+  --line: #3a2e22;
+  --accent: #f0a202;
+  --ok: #7d9a5a;
   --danger: #e85d04;
-  font-family: "IBM Plex Mono", "Cascadia Mono", ui-monospace, monospace;
+  --serif: "Fraunces", "Iowan Old Style", serif;
+  --mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+}
 body::before {
   content: "";
   pointer-events: none;
   position: fixed; inset: 0;
-  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.12) 3px);
+  opacity: .18;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
-header {
-  display: flex; gap: 16px; align-items: baseline;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--line);
+.shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100%; }
+aside {
+  border-right: 1px solid var(--line);
+  background: var(--bg-2);
+  padding: 28px 18px;
+  display: flex; flex-direction: column; gap: 22px;
 }
-header strong { color: var(--accent); letter-spacing: .12em; text-transform: uppercase; }
-nav { display: flex; gap: 10px; flex-wrap: wrap; }
-nav button {
-  background: transparent; color: var(--ink); border: 1px solid var(--line);
-  padding: 4px 8px; cursor: pointer;
+.brand { font-family: var(--serif); font-size: 34px; font-weight: 700; color: var(--accent); line-height: 1; }
+.tag { color: var(--muted); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; }
+aside nav { display: flex; flex-direction: column; gap: 6px; }
+aside nav button, .lang button {
+  text-align: left; background: transparent; color: var(--ink);
+  border: 1px solid transparent; padding: 8px 10px; cursor: pointer; font: inherit;
 }
-nav button.active { border-color: var(--accent); color: var(--accent); }
-main { padding: 20px; max-width: 1100px; }
-h2, h3 { font-weight: 500; letter-spacing: .08em; text-transform: lowercase; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; }
-th { color: var(--muted); }
+aside nav button.active, .lang button.active { border-color: var(--accent); color: var(--accent); }
+aside input {
+  width: 100%; background: #120f0c; color: var(--ink); border: 1px solid var(--line);
+  padding: 8px; font: inherit;
+}
+.lang { display: flex; gap: 6px; }
+main.workspace { padding: 36px 42px 64px; max-width: 980px; }
+h2 { font-family: var(--serif); font-weight: 500; font-size: 32px; margin: 0 0 8px; }
+h3 { font-family: var(--serif); font-weight: 500; font-size: 20px; margin: 28px 0 10px; }
+.kicker { color: var(--muted); letter-spacing: .14em; text-transform: uppercase; font-size: 11px; margin: 0 0 24px; }
+ol.steps { padding: 0; list-style: none; counter-reset: st; display: grid; gap: 14px; }
+ol.steps li {
+  counter-increment: st; border: 1px solid var(--line); padding: 16px 18px 16px 56px;
+  position: relative; background: rgba(26,22,18,.7);
+}
+ol.steps li::before {
+  content: counter(st); position: absolute; left: 16px; top: 16px;
+  font-family: var(--serif); color: var(--accent); font-size: 22px;
+}
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; }
+th { color: var(--muted); font-weight: 500; }
 input, textarea {
-  width: 100%; background: #1c1510; color: var(--ink); border: 1px solid var(--line);
-  padding: 6px 8px; margin: 4px 0 10px;
+  width: 100%; background: #16130f; color: var(--ink); border: 1px solid var(--line);
+  padding: 8px 10px; margin: 4px 0 12px; font: inherit;
 }
-button { background: var(--accent); color: #1a1208; border: 0; padding: 6px 10px; margin: 4px 6px 4px 0; cursor: pointer; }
-label { display: block; color: var(--muted); font-size: 12px; }
-dl.grid { display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; }
+section button {
+  background: var(--accent); color: #1a1208; border: 0; padding: 8px 12px;
+  margin: 4px 8px 4px 0; cursor: pointer; font: inherit; font-weight: 500;
+}
+button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+label { display: block; color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+dl.grid { display: grid; grid-template-columns: 160px 1fr; gap: 8px 16px; }
 dt { color: var(--muted); }
 .muted { color: var(--muted); }
 .err { color: var(--danger); }
-.chip { display: inline-block; border: 1px solid var(--accent); color: var(--accent); padding: 0 6px; font-size: 11px; }
-.kicker { color: var(--muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.ok, .flash { color: var(--ok); }
+.chip { display: inline-block; border: 1px solid var(--accent); color: var(--accent); padding: 0 6px; font-size: 11px; margin-right: 6px; }
 code { color: var(--accent); }
-ol.steps { padding-left: 1.2em; line-height: 1.6; }
-ol.steps li { margin: 16px 0; }
-.copybox { background: #1c1510; border: 1px dashed var(--line); padding: 10px 12px; overflow-x: auto; }
+.copybox { background: #16130f; border: 1px dashed var(--line); padding: 12px 14px; overflow-x: auto; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.live { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 8px; box-shadow: 0 0 8px var(--ok); }
+@media (max-width: 840px) {
+  .shell { grid-template-columns: 1fr; }
+  aside { border-right: 0; border-bottom: 1px solid var(--line); }
+  .row { grid-template-columns: 1fr; }
+}

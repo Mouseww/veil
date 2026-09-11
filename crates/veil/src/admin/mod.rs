@@ -3,7 +3,7 @@ mod auth;
 mod traffic;
 
 pub use api::AdminState;
-pub use traffic::{TrafficEvent, TrafficLog};
+pub use traffic::{now_unix_ms, TrafficEvent, TrafficLog};
 
 use axum::http::{header, StatusCode, Uri};
 use axum::response::IntoResponse;

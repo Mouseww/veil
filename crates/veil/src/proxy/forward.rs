@@ -15,6 +15,7 @@ use veil_engine::rules::RuleSet;
 use veil_engine::walk::{desensitize_json, WalkError};
 
 use super::classify::{classify, upstream_base, UpstreamConfig};
+use crate::admin::{now_unix_ms, TrafficEvent, TrafficLog};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -23,6 +24,7 @@ pub struct AppState {
     pub store: Arc<dyn MappingStore + Send + Sync>,
     pub rules: Arc<RuleSet>,
     pub client: reqwest::Client,
+    pub traffic: TrafficLog,
 }
 
 impl AppState {
@@ -40,7 +42,13 @@ impl AppState {
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .expect("reqwest client"),
+            traffic: TrafficLog::default(),
         }
+    }
+
+    pub fn with_traffic(mut self, traffic: TrafficLog) -> Self {
+        self.traffic = traffic;
+        self
     }
 }
 
@@ -61,9 +69,23 @@ async fn proxy_inner(
     let path = req.uri().path().to_string();
     let query = req.uri().query().map(str::to_string);
     let method = req.method().clone();
+    let method_s = method.as_str().to_string();
     let headers = req.headers().clone();
+    let started = std::time::Instant::now();
 
     let Some(family) = classify(&path) else {
+        record_traffic(
+            state,
+            &method_s,
+            &path,
+            404,
+            false,
+            vec![],
+            vec![],
+            started,
+            Some("not_found"),
+            "",
+        );
         return Err((StatusCode::NOT_FOUND, "not found").into_response());
     };
 
@@ -138,9 +160,64 @@ async fn proxy_inner(
         .await
         .map_err(|_| (StatusCode::BAD_GATEWAY, "upstream body").into_response())?;
     let out = restore_response(state, &headers, &content_type, &bytes)?;
+    let streaming = content_type.contains("event-stream");
+    let (hit_types, hit_counts) = tally_hits(state, &raw);
+    record_traffic(
+        state,
+        &method_s,
+        &path,
+        status.as_u16(),
+        streaming,
+        hit_types,
+        hit_counts,
+        started,
+        None,
+        &creator.prefix8(),
+    );
     response
         .body(Body::from(out))
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "response").into_response())
+}
+
+fn tally_hits(state: &AppState, raw: &Bytes) -> (Vec<String>, Vec<u32>) {
+    let text = String::from_utf8_lossy(raw);
+    let mut types: Vec<String> = Vec::new();
+    let mut counts: Vec<u32> = Vec::new();
+    for h in state.rules.find_hits(&text) {
+        if let Some(i) = types.iter().position(|t| t == &h.type_prefix) {
+            counts[i] += 1;
+        } else {
+            types.push(h.type_prefix);
+            counts.push(1);
+        }
+    }
+    (types, counts)
+}
+
+fn record_traffic(
+    state: &AppState,
+    method: &str,
+    path: &str,
+    status: u16,
+    streaming: bool,
+    hit_types: Vec<String>,
+    hit_counts: Vec<u32>,
+    started: std::time::Instant,
+    error_class: Option<&str>,
+    creator_prefix8: &str,
+) {
+    state.traffic.record(TrafficEvent {
+        ts: now_unix_ms(),
+        method: method.to_string(),
+        path_template: path.to_string(),
+        status,
+        streaming,
+        hit_types,
+        hit_counts,
+        latency_ms: started.elapsed().as_millis() as u64,
+        error_class: error_class.map(str::to_string),
+        creator_prefix8: creator_prefix8.to_string(),
+    });
 }
 
 fn prepare_body(

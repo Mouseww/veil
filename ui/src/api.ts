@@ -79,4 +79,10 @@ export const api = {
   rotateKey: (new_key: string) => req<{ rotated: boolean }>("/api/master-key", { method: "POST", body: JSON.stringify({ new_key }) }),
   purge: (creator_prefix?: string) => req<{ purged: boolean }>("/api/mappings/purge", { method: "POST", body: JSON.stringify({ creator_prefix }) }),
   resetToken: () => req<{ token: string }>("/api/admin-token/reset", { method: "POST" }),
+  traffic: async () => {
+    const text = await req<string>("/api/traffic");
+    const line = String(text).split("\n").find((l) => l.startsWith("data: "));
+    if (!line) return [] as TrafficEvent[];
+    try { return JSON.parse(line.slice(6)) as TrafficEvent[]; } catch { return []; }
+  },
 };
