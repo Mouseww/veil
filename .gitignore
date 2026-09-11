@@ -9,3 +9,5 @@ master.key
 *.exe
 .worktrees
 worktrees
+/release-assets
+/flat-rel

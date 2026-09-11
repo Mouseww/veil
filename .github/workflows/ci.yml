@@ -6,8 +6,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    env:
-      DGW_SKIP_UI_BUILD: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -18,13 +16,15 @@ jobs:
           node-version: "22"
       - name: rustfmt
         run: cargo fmt --all -- --check
-      - name: cargo test
-        run: cargo test --workspace
-      - name: ui tests
+      - name: ui tests and build
         working-directory: ui
         run: |
           npm ci
           npm test
           npm run build
+      - name: cargo test
+        env:
+          DGW_SKIP_UI_BUILD: "1"
+        run: cargo test --workspace
       - name: plugin tests
         run: node --test plugin/claude-code/scripts/dgw.test.mjs
