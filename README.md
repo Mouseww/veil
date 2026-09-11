@@ -1,137 +1,123 @@
 # Veil
 
-[中文说明](README.zh-CN.md) · [Download](https://github.com/Mouseww/veil/releases/latest) · Apache-2.0 · No telemetry
+A local AI privacy gateway: redact on the way out, restore on the way back. **The model never sees plaintext.**
 
-**Your coding agent has already seen your production password.**
+[中文说明](README.zh-CN.md) · [Releases](https://github.com/Mouseww/veil/releases/latest) · Apache-2.0 · no telemetry
 
-You paste a connection string to debug a timeout. You paste a customer phone number to write a regex. You paste an `.env` because the stack trace is ugly. That text leaves your machine, lands in a vendor log, and you cannot unsend it.
+Inspired by [Data Maskit](https://github.com/xiaYuTian11/maskit) and the [LINUX DO thread](https://linux.do/t/topic/2884715). One local port for Anthropic **and** OpenAI-compatible APIs. Any product that lets you set a Base URL can use it.
 
-Veil sits on `localhost` between the app and the model. Secrets are replaced with placeholders **on the way out**. The model answers in placeholders. Veil puts the real values back **on the way in**. You keep working. The model never saw the plaintext.
+---
+
+## What happens
+
+| Stage | Example |
+|---|---|
+| You type | `check mysql://root:Pass123@10.1.2.3:3306/app, phone 13800138000` |
+| Model sees | `check {{CONNSTR_…}}, phone {{PHONE_…}}` |
+| Model answers | `ping {{CONNSTR_…}} and ask {{PHONE_…}}` |
+| You see | the real DSN and number again |
+
+Auth is pass-through. Keep the **upstream** API key / login in the original app. Veil does not have its own key.
 
 ```
-Claude / Codex / Trae / PI / Hermes / Grok
-        |
-        v
-   Veil (this laptop)     redact --> restore
-        |
-        v
-   Anthropic / OpenAI / LiteLLM / your gateway
+your tool  --Base URL-->  http://127.0.0.1:18787  --redacted-->  upstream API
 ```
 
-No account. No extra API key. Official Claude login still works. Third-party gateways still work. Auth headers are forwarded unchanged.
+---
 
-## Install (Windows, ~30s)
+## Install (Windows)
+
+1. Download `veil-windows-x64.exe` from [Releases](https://github.com/Mouseww/veil/releases/latest).
+2. Double-click. Browser should open http://127.0.0.1:18788
+3. If GitHub file CDN is blocked:
 
 ```powershell
-irm https://raw.githubusercontent.com/Mouseww/veil/main/scripts/install.ps1 | iex
+gh release download v0.3.5 --repo Mouseww/veil -p veil-windows-x64.exe -D $env:LOCALAPPDATA\veil\bin
+Copy-Item $env:LOCALAPPDATA\veil\bin\veil-windows-x64.exe $env:LOCALAPPDATA\veil\bin\veil.exe -Force
 ```
 
-When the console opens, in a **new** terminal:
-
-```bat
-veil setup
-```
-
-Pick the apps you actually use. Restart them. Chat as usual.
-
-Or grab `veil-windows-x64.exe` from [Releases](https://github.com/Mouseww/veil/releases/latest) and double-click it.
-
-macOS / Linux: download the matching binary from Releases, run `./veil`, then `./veil setup`.
-
-Proxy `http://127.0.0.1:18787` · Console `http://127.0.0.1:18788`
-
-## Updating
-
-From **v0.2+** (the `veil` binary):
-
-```bat
-veil update
-```
-
-Or in the console: **Check for updates** → **Update now**. Veil downloads the latest GitHub release, verifies SHA-256, replaces itself, and restarts.
-
-If `veil update` cannot reach `github.com/releases/download` (common in CN), it will try GitHub API + mirrors, or set `VEIL_GITHUB_MIRROR=https://ghfast.top/`. You can also:
-
-```bat
-gh release download v0.3.3 --repo Mouseww/veil -p veil-windows-x64.exe
-```
-
-From **v0.1** (`dgw.exe`): run the install command above again. It installs `veil.exe` alongside. Then use `veil update` next time.
-
-```powershell
-irm https://raw.githubusercontent.com/Mouseww/veil/main/scripts/install.ps1 | iex
-```
-
-## When you actually need this
-
-**Debugging with real data.** The incident is in production. The agent needs the DSN, the Redis URL, the JWT. Let it see the *shape*, not the secret.
-
-**Customer data in the prompt.** Phone numbers, national IDs, emails in a log dump. You want a summary, not a GDPR incident.
-
-**Internal networks.** Tickets full of `10.x` hosts, VPN endpoints, admin panels. Public IPs are redacted too; loopback stays.
-
-**`.env` and PEM files.** You ask "why is this deploy failing?" and the private key is three lines above the error.
-
-**Unofficial / company model gateways.** LiteLLM, a self-hosted proxy, a reseller. You still don't want *that* server to store your customers' numbers either. Point Veil at it with `--upstream`.
-
-**Official Claude / ChatGPT-class subscriptions.** Keep the login on the laptop. Veil is only a local hop; it does not steal OAuth.
-
-**Several coding agents at once.** Claude Code in one window, Codex in another, Trae on a second machine account. `veil setup` writes each config. One proxy, many apps.
-
-**Demos and teaching.** Live-code in a meetup without spraying a personal token on a projector.
-
-**Fail-closed by design.** If Veil cannot prove a request body is clean, it does **not** forward it. Better a 502 than a leak.
-
-## Apps `veil setup` can point at Veil
-
-| id | app |
+| URL | For |
 |---|---|
-| `claude` | Claude Code |
-| `codex` | Codex |
-| `pi` | PI Agent |
-| `codebuddy` | CodeBuddy (Workbuddy) |
-| `grok` | Grok Builder |
-| `hermes` | Hermes |
-| `trae` | Trae |
+| http://127.0.0.1:18787 | **Base URL you put in the AI tool** |
+| http://127.0.0.1:18788 | Console (rules / upstream / traffic) |
 
-```bat
-veil setup --clients claude,codex,trae
-veil setup --clients all --upstream https://your-gateway.example
+---
+
+## Use any product that has a Base URL
+
+Veil is **not** limited to the apps in `veil setup`. If a tool can set API Base URL (or `OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL`), it works.
+
+| Protocol | Base URL in the tool |
+|---|---|
+| Anthropic (`/v1/messages`) | `http://127.0.0.1:18787` |
+| OpenAI-compatible (`/v1/chat/completions`, `/v1/responses`) | `http://127.0.0.1:18787/v1` |
+
+1. Start Veil.
+2. Point the tool at the URL above.
+3. Keep using the **upstream** API key.
+4. In the console **Upstream** tab, set where Veil should forward **after** redacting (`https://api.anthropic.com`, `https://api.openai.com`, or your LiteLLM / New API / company relay).
+5. Send a test like `call 13800138000`. **Traffic** should show a hit; the vendor must not see the number.
+
+`veil setup` only auto-edits configs for apps it recognizes (Claude Code, Codex, Trae, PI, Hermes, CodeBuddy, Grok). Everything else: change Base URL by hand. Same result.
+
+**Cursor:** Settings → Models → OpenAI Base URL = `http://127.0.0.1:18787/v1`
+
+**Claude Code:** `veil setup --clients claude` or `$env:ANTHROPIC_BASE_URL="http://127.0.0.1:18787"`
+
+**Python:**
+
+```python
+from openai import OpenAI
+client = OpenAI(base_url="http://127.0.0.1:18787/v1", api_key="upstream-key")
 ```
 
-Empty `veil setup` lists what it found on this machine. Restart the apps afterwards.
+**Company relay:** Upstream tab = relay root URL; tool Base URL stays localhost; tool key = relay key.
 
-## Official API vs your own gateway
+```bat
+veil setup --upstream https://api.your-relay.com
+```
 
-| You use | What to do |
+---
+
+## Configure rules
+
+Open http://127.0.0.1:18788 → **Rules**.
+
+A rule replaces matching text with `{{TYPE_ULID}}` before the request leaves. Same API key (Creator) always gets the same placeholder, so multi-turn chat stays consistent.
+
+| Type | Matches |
 |---|---|
-| Official Anthropic / Claude login | `veil setup` only |
-| Already have `ANTHROPIC_BASE_URL` | `veil setup` keeps it as upstream |
-| Third-party, never set a Base URL | `veil setup --upstream https://…` |
-| OpenAI-compatible client | Base URL → `http://127.0.0.1:18787` (OpenAI paths use `/v1`) |
+| `PEM` | private key blocks |
+| `APIKEY` | `sk-`, `sk-ant-`, `AKIA`, `ghp_`, `api_key=` |
+| `TOKEN` | `Bearer`, JWT `eyJ`, `access_token=`, `xoxb-` |
+| `CONNSTR` | `mysql://`, `postgres://`, `jdbc:`, `Password=` |
+| `PASSWORD` | `password:`, `passwd=`, 口令 |
+| `PHONE` / `IDCARD` | CN mobile / national id |
+| `IP` | parseable IPv4/IPv6 (loopback allowlisted) |
+| `EMAIL` | off by default |
 
-The API key / token is always the **upstream** one, stored in the app. Veil forwards `Authorization`, `x-api-key`, `api-key`. It never asks for a second secret.
+**Edit:** toggle on the left; click the row to expand type / priority / regex / dictionary; Save. Custom rules can be deleted. Built-in IP has no regex (it parses addresses).
 
-Fine-tune upstreams in the console tab **Upstream**.
+**Add:** id + type prefix + regex, e.g. type `CODENAME`, pattern `\bAcmeInternal\b` → `{{CODENAME_…}}`.
 
-## What it redacts
+**Allowlist:** one string per line that must never be replaced (`localhost` is already there).
 
-Built-in: phone numbers, national IDs, parseable IPs (including public; `127.0.0.1` / `localhost` allowlisted), PEM blocks, `sk-` tokens, database connection strings.
+**Dry-run:** paste a real log, run locally, **nothing is sent to the model**. Do this before you trust a new regex.
 
-Add regex or dictionary rules in the console. Dry-run a sample before you save. Placeholders look like `{{PHONE_01ARZ3NDEKTSV4RRFFQ69G5FAV}}` and only restore for the same API key (Creator).
+Higher priority wins on overlap. If a body cannot be proven clean, Veil returns **502** and does not forward.
+
+---
 
 ## Commands
 
 | | |
 |---|---|
-| `veil` | start and open the console |
-| `veil setup` | pick apps, write their Base URL |
-| `veil update` | install the latest GitHub release |
-| `veil status` / `veil stop` | |
+| `veil` | start + open console |
+| `veil setup` | optional auto-config for detected apps |
+| `veil update` | GitHub release (use console or `gh release download` if CDN is blocked) |
+| `veil stop` / `veil status` | |
 
-`VEIL_DATA_DIR`, `VEIL_MASTER_KEY`, `VEIL_BIND`, `VEIL_MODE=server` if you need them. Legacy `DGW_*` still works.
+---
 
-## License
-
-Apache-2.0. No outbound telemetry. Mapping table is encrypted on disk.
+Apache-2.0. Encrypted mapping table. No telemetry.
 
