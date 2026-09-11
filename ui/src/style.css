@@ -97,12 +97,21 @@ h2 { font-size: 16px; margin: 0 0 6px; }
   display: grid; place-items: center; font-weight: 700; font-size: 13px;
 }
 .field { margin-bottom: 12px; }
-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
+label input, label textarea { display: block; margin-top: 6px; }
+dl.grid { display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; margin: 12px 0 20px; }
+dl.grid dt { color: var(--muted); }
+dl.grid dd { margin: 0; font-variant-numeric: tabular-nums; }
 input, textarea, select {
   width: 100%; border: 1px solid var(--border); border-radius: 8px; background: var(--card);
   color: var(--foreground); padding: 8px 10px; font: inherit;
 }
 textarea { font-family: var(--mono); font-size: 12px; }
+.workspace button {
+  background: var(--primary); color: var(--primary-fg); border: 0; border-radius: 8px;
+  padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; margin: 4px 8px 4px 0;
+}
+.workspace button:hover { filter: brightness(1.06); }
 button.btn {
   background: var(--primary); color: var(--primary-fg); border: 0; border-radius: 8px;
   padding: 8px 12px; font: inherit; font-weight: 600; cursor: pointer; margin: 4px 8px 4px 0;

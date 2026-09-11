@@ -13,16 +13,34 @@ pub fn builtin_ruleset() -> RuleSet {
     RuleSet::new(
         vec![
             Rule::regex(
-                "aksk",
-                "AKSK",
-                r"-----BEGIN [A-Z0-9 ]+PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]+PRIVATE KEY-----|AKIA[0-9A-Z]{16}|(?<![A-Za-z0-9])sk-ant-\S+|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|Bearer eyJ\S+",
-                200,
+                "pem",
+                "PEM",
+                r"-----BEGIN [A-Z0-9 ]+PRIVATE KEY-----[\s\S]*?-----END [A-Z0-9 ]+PRIVATE KEY-----",
+                220,
+            ),
+            Rule::regex(
+                "apikey",
+                "APIKEY",
+                r"(?i)(?:api[_-]?key|access[_-]?key)\s*[:=]\s*\S{8,}|(?<![A-Za-z0-9])(?:sk-ant-|sk-|rk-|pk-live-|pk-test-|xai-|ghp_|gho_|github_pat_|AIza)[A-Za-z0-9_\-]{8,}|AKIA[0-9A-Z]{16}",
+                210,
+            ),
+            Rule::regex(
+                "token",
+                "TOKEN",
+                r"(?i)(?:api[_-]?token|access[_-]?token|auth[_-]?token|refresh[_-]?token)\s*[:=]\s*\S{8,}|(?i)Bearer\s+[A-Za-z0-9\-._~+/]+=*|(?<![A-Za-z0-9])(?:xox[baprs]-|glpat-|npm_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}\.)",
+                205,
             ),
             Rule::regex(
                 "connstr",
                 "CONNSTR",
-                r"(?i)(?:postgres|postgresql|mysql|mongodb|redis|mssql|sqlserver)://\S+|Pwd\s*=\s*[^;\s]+",
+                r#"(?i)(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|rediss|mssql|sqlserver|mariadb|amqp|amqps|jdbc:\w+)://\S+|(?:Server|Data Source|Initial Catalog)\s*=\s*[^;]+|(?:Pwd|Password|PWD)\s*=\s*[^;\s"]+"#,
                 180,
+            ),
+            Rule::regex(
+                "password",
+                "PASSWORD",
+                r#"(?i)(?:password|passwd|passphrase|login[_-]?password|登录密码|口令)\s*[:=]\s*(?:['"][^'"]{4,}['"]|\S{4,})"#,
+                170,
             ),
             Rule::regex("idcard", "IDCARD", r"(?<!\d)\d{17}[\dXx](?!\d)", 150),
             Rule::regex("phone", "PHONE", r"(?<!\d)1[3-9]\d{9}(?!\d)", 140),
@@ -40,6 +58,14 @@ fn default_allowlist() -> Allowlist {
 #[cfg(test)]
 mod tests {
     use super::builtin_ruleset;
+
+    fn types(text: &str) -> Vec<String> {
+        builtin_ruleset()
+            .find_hits(text)
+            .into_iter()
+            .map(|h| h.type_prefix)
+            .collect()
+    }
 
     #[test]
     fn parses_public_and_private_ips() {
@@ -69,34 +95,56 @@ mod tests {
 
     #[test]
     fn china_mobile_and_id() {
-        let set = builtin_ruleset();
-        let t = "mobile 13800138000 id 110101199003078515";
-        let hits = set.find_hits(t);
-        let types: Vec<_> = hits.iter().map(|h| h.type_prefix.as_str()).collect();
-        assert!(types.contains(&"PHONE"));
-        assert!(types.contains(&"IDCARD"));
+        let t = types("mobile 13800138000 id 110101199003078515");
+        assert!(t.contains(&"PHONE".into()));
+        assert!(t.contains(&"IDCARD".into()));
     }
 
     #[test]
     fn connection_string_beats_inner_ip() {
-        let set = builtin_ruleset();
-        let hits = set.find_hits("postgres://u:s3cret@10.1.2.3:5432/app");
+        let hits = builtin_ruleset().find_hits("postgres://u:s3cret@10.1.2.3:5432/app");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].type_prefix, "CONNSTR");
     }
 
     #[test]
+    fn jdbc_and_sql_password() {
+        let t = types("jdbc:mysql://db:3306/app Password=hunter2;");
+        assert!(t.contains(&"CONNSTR".into()), "{t:?}");
+    }
+
+    #[test]
+    fn login_password_assignment() {
+        let hits = builtin_ruleset().find_hits("ssh password: hunter2-ok");
+        assert!(
+            hits.iter()
+                .any(|h| h.type_prefix == "PASSWORD" && h.plaintext.contains("hunter2")),
+            "{hits:?}"
+        );
+    }
+
+    #[test]
+    fn api_key_and_sk() {
+        let t = types("api_key=sk-abcdefghijklmnopqrstuvwxyz1234");
+        assert!(t.contains(&"APIKEY".into()), "{t:?}");
+        let t = types("Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aaaa.bb");
+        assert!(t.contains(&"TOKEN".into()), "{t:?}");
+        let t = types("xoxb-1234567890-abcdefghij");
+        assert!(t.contains(&"TOKEN".into()), "{t:?}");
+    }
+
+    #[test]
     fn akia_and_pem_header() {
-        let set = builtin_ruleset();
-        let hits = set.find_hits("AKIAIOSFODNN7EXAMPLE and -----BEGIN RSA PRIVATE KEY-----");
-        let types: Vec<_> = hits.iter().map(|h| h.type_prefix.as_str()).collect();
-        assert!(types.contains(&"AKSK"));
+        let t = types("AKIAIOSFODNN7EXAMPLE and -----BEGIN RSA PRIVATE KEY-----\nMIIB\n-----END RSA PRIVATE KEY-----");
+        assert!(
+            t.contains(&"APIKEY".into()) || t.contains(&"PEM".into()),
+            "{t:?}"
+        );
     }
 
     #[test]
     fn email_builtin_disabled() {
-        let set = builtin_ruleset();
-        assert!(set
+        assert!(builtin_ruleset()
             .find_hits("a@example.com")
             .iter()
             .all(|h| h.type_prefix != "EMAIL"));
@@ -152,15 +200,17 @@ mod tests {
 MIIBOgIBAAJBAK8=
 -----END RSA PRIVATE KEY-----";
         let hits = builtin_ruleset().find_hits(pem);
-        let aksk: Vec<_> = hits.iter().filter(|h| h.type_prefix == "AKSK").collect();
-        assert_eq!(aksk.len(), 1, "expected one AKSK hit, got {hits:?}");
+        let pem_hits: Vec<_> = hits.iter().filter(|h| h.type_prefix == "PEM").collect();
+        assert_eq!(pem_hits.len(), 1, "expected one PEM hit, got {hits:?}");
         assert!(
-            aksk[0].plaintext.contains("MIIBOgIBAAJBAK8="),
+            pem_hits[0].plaintext.contains("MIIBOgIBAAJBAK8="),
             "PEM hit must include the base64 body, got {:?}",
-            aksk[0].plaintext
+            pem_hits[0].plaintext
         );
-        assert!(aksk[0].plaintext.contains("-----END RSA PRIVATE KEY-----"));
-        assert!(aksk[0]
+        assert!(pem_hits[0]
+            .plaintext
+            .contains("-----END RSA PRIVATE KEY-----"));
+        assert!(pem_hits[0]
             .plaintext
             .starts_with("-----BEGIN RSA PRIVATE KEY-----"));
     }
@@ -171,18 +221,18 @@ MIIBOgIBAAJBAK8=
         assert!(
             set.find_hits("task-abcdefghijklmnopqrstuvwxyz1234")
                 .iter()
-                .all(|h| h.type_prefix != "AKSK"),
-            "embedded sk- in task-... must not be AKSK"
+                .all(|h| h.type_prefix != "APIKEY"),
+            "embedded sk- in task-... must not be APIKEY"
         );
         let open_sk = set.find_hits("sk-abcdefghijklmnopqrstuvwxyz1234");
         assert!(
-            open_sk.iter().any(|h| h.type_prefix == "AKSK"),
+            open_sk.iter().any(|h| h.type_prefix == "APIKEY"),
             "boundary sk-<20+> must match, got {open_sk:?}"
         );
         let ant = set.find_hits("token sk-ant-api03-secret");
         assert!(
             ant.iter()
-                .any(|h| h.type_prefix == "AKSK" && h.plaintext.contains("sk-ant-")),
+                .any(|h| h.type_prefix == "APIKEY" && h.plaintext.contains("sk-ant-")),
             "boundary sk-ant- must match, got {ant:?}"
         );
     }
