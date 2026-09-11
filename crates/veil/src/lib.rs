@@ -1,6 +1,7 @@
 //! Veil library surface for config, data dir, and master key.
 
 pub mod admin;
+pub mod clients;
 pub mod config;
 pub mod data_dir;
 pub mod env;
@@ -32,6 +33,8 @@ pub enum Error {
     TomlSer(#[from] toml::ser::Error),
     #[error("json error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("{0}")]
+    Setup(String),
 }
 
 #[cfg(test)]

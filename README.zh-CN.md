@@ -40,6 +40,27 @@ veil setup
 
 代理：`http://127.0.0.1:18787`  ·  管理页：`http://127.0.0.1:18788`
 
+## 支持哪些应用
+
+`veil setup` 会列出本机已安装的，让你勾选；也可以用 `--clients`。
+
+| id | 应用 |
+|---|---|
+| `claude` | Claude Code |
+| `codex` | Codex |
+| `pi` | PI Agent |
+| `codebuddy` | CodeBuddy（Workbuddy） |
+| `grok` | Grok Builder |
+| `hermes` | Hermes（Herness） |
+| `trae` | Trae |
+
+```bat
+veil setup --clients claude,codex,trae
+veil setup --clients all --upstream https://你的网关
+```
+
+改完请重启对应应用。Key 仍填在应用里，Veil 只透传。
+
 ## 官方订阅 vs 非官方 / 自定义 API
 
 一键安装脚本**只负责把 Veil 跑起来**。流量接下来打到哪家，叫上游（upstream），需要单独说清楚。
@@ -73,7 +94,7 @@ veil setup --upstream https://your-gateway.example
 | | |
 |---|---|
 | `veil` | 启动并打开管理页 |
-| `veil setup` | 一键写入 Claude Code 用户配置 |
+| `veil setup` | 选择要接入的应用并写入配置 |
 | `veil status` / `veil stop` | 查看 / 停止 |
 
 可选环境变量：`VEIL_DATA_DIR`、`VEIL_MASTER_KEY`、`VEIL_BIND`、`VEIL_MODE=server`。旧的 `DGW_*` 仍然有效。

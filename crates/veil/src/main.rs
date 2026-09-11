@@ -2,8 +2,10 @@
 
 use std::sync::Arc;
 
+use std::io::{self, IsTerminal, Write};
 use tokio::net::TcpListener;
 use veil::admin::{self, AdminState, TrafficLog};
+use veil::clients;
 use veil::config::Config;
 use veil::data_dir::default_data_dir;
 use veil::master_key::load_or_create;
@@ -51,11 +53,11 @@ fn print_help() {
     eprintln!();
     eprintln!("  Double-click veil.exe, or run:  veil");
     eprintln!("  Then run:  veil setup");
-    eprintln!("  Restart Claude Code. Done.");
     eprintln!();
     eprintln!("  veil start              start in background");
     eprintln!("  veil start --foreground");
-    eprintln!("  veil setup [--upstream URL]   point Claude Code at Veil");
+    eprintln!("  veil setup [--clients LIST] [--upstream URL]");
+    eprintln!("      clients: claude,codex,pi,codebuddy,grok,hermes,trae,all");
     eprintln!("  veil ui                 open the console");
     eprintln!("  veil status");
     eprintln!("  veil stop");
@@ -191,29 +193,85 @@ fn flag_value(args: &[String], name: &str) -> Option<String> {
     })
 }
 
+fn pick_clients(args: &[String]) -> Result<Vec<&'static str>, Box<dyn std::error::Error>> {
+    if let Some(raw) = flag_value(args, "--clients") {
+        return Ok(clients::resolve_ids(&raw)?);
+    }
+    let detected = clients::detected_ids();
+    if args.iter().any(|a| a == "--yes" || a == "-y") || !io::stdin().is_terminal() {
+        if detected.is_empty() {
+            return Ok(vec!["claude"]);
+        }
+        return Ok(detected);
+    }
+    println!("Which apps should send traffic through Veil?");
+    for (i, spec) in clients::CLIENTS.iter().enumerate() {
+        let mark = if clients::is_detected(spec.id) {
+            "found"
+        } else {
+            "     "
+        };
+        println!("  {}) [{:5}] {}", i + 1, mark, spec.label);
+    }
+    print!("Numbers, 'all', or Enter for all found: ");
+    io::stdout().flush()?;
+    let mut line = String::new();
+    io::stdin().read_line(&mut line)?;
+    let line = line.trim();
+    if line.is_empty() {
+        if detected.is_empty() {
+            return Ok(clients::CLIENTS.iter().map(|c| c.id).collect());
+        }
+        return Ok(detected);
+    }
+    if line.eq_ignore_ascii_case("all") {
+        return Ok(clients::CLIENTS.iter().map(|c| c.id).collect());
+    }
+    let mut ids = Vec::new();
+    for part in line.split(|c: char| c == ',' || c.is_whitespace()) {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        if let Ok(n) = part.parse::<usize>() {
+            if let Some(spec) = clients::CLIENTS.get(n.saturating_sub(1)) {
+                if !ids.contains(&spec.id) {
+                    ids.push(spec.id);
+                }
+                continue;
+            }
+        }
+        ids.extend(clients::resolve_ids(part)?);
+    }
+    Ok(ids)
+}
+
 fn cmd_setup(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
-    let path = setup::claude_settings_path();
-    let prev = setup::write_claude_base_url(&path, DEFAULT_PROXY_URL)?;
+    let ids = pick_clients(args)?;
+    if ids.is_empty() {
+        println!("no clients selected");
+        return Ok(());
+    }
     let explicit = flag_value(args, "--upstream");
-    let chain = explicit.as_deref().or(prev.as_deref());
+    let mut previous = explicit.clone();
+    println!("proxy {DEFAULT_PROXY_URL}");
+    for id in &ids {
+        let r = clients::apply_client(id, DEFAULT_PROXY_URL)?;
+        println!("  {}  {}", r.id, r.path.display());
+        if previous.is_none() {
+            previous = r.previous;
+        }
+    }
     let data_dir = default_data_dir();
     let mut cfg = Config::load(&data_dir)?;
-    let chained = setup::apply_chained_upstream(&mut cfg, chain);
+    let chained = setup::apply_chained_upstream(&mut cfg, previous.as_deref());
     if chained {
         cfg.save(&data_dir)?;
-    }
-    println!("wrote Claude Code user settings:");
-    println!("  {}", path.display());
-    println!("  ANTHROPIC_BASE_URL={DEFAULT_PROXY_URL}");
-    if chained {
         println!("  custom upstream: {}", cfg.anthropic_upstream);
-        println!("  (Veil will call that API after redacting)");
     } else {
-        println!("  official Anthropic API (default). For a third-party gateway:");
-        println!("    veil setup --upstream https://your-api.example");
-        println!("  or set it in the console tab 上游 / Upstream.");
+        println!("  upstream: official APIs (override with --upstream URL or console 上游)");
     }
     println!();
-    println!("Restart Claude Code. Login / API keys stay as-is.");
+    println!("Restart the selected apps. API keys stay in the client; Veil pass-throughs them.");
     Ok(())
 }

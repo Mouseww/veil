@@ -58,7 +58,13 @@ pub fn apply_chained_upstream(cfg: &mut Config, previous: Option<&str>) -> bool 
         return false;
     };
     cfg.saved_client_anthropic_base_url = Some(url.to_string());
-    cfg.anthropic_upstream = url.to_string();
+    let origin = url
+        .trim_end_matches('/')
+        .trim_end_matches("/v1")
+        .to_string();
+    cfg.anthropic_upstream = origin.clone();
+    cfg.openai_completions_upstream = origin.clone();
+    cfg.openai_responses_upstream = origin;
     true
 }
 
@@ -124,7 +130,8 @@ mod tests {
             &mut cfg,
             Some("https://litellm.example/v1")
         ));
-        assert_eq!(cfg.anthropic_upstream, "https://litellm.example/v1");
+        assert_eq!(cfg.anthropic_upstream, "https://litellm.example");
+        assert_eq!(cfg.openai_completions_upstream, "https://litellm.example");
         assert_eq!(
             cfg.saved_client_anthropic_base_url.as_deref(),
             Some("https://litellm.example/v1")
