@@ -27,6 +27,7 @@ pub struct AppState {
     pub client: reqwest::Client,
     pub traffic: TrafficLog,
     pub default_family: Option<ProtocolFamily>,
+    pub alias_hint: bool,
 }
 
 impl AppState {
@@ -46,6 +47,7 @@ impl AppState {
                 .expect("reqwest client"),
             traffic: TrafficLog::default(),
             default_family: None,
+            alias_hint: true,
         }
     }
 
@@ -329,7 +331,10 @@ fn prepare_body(
         let value: Value = serde_json::from_slice(raw)
             .map_err(|_| (StatusCode::BAD_GATEWAY, "unscannable json").into_response())?;
         match desensitize_json(&value, &state.rules, state.store.as_ref(), creator) {
-            Ok(redacted) => {
+            Ok(mut redacted) => {
+                if state.alias_hint {
+                    super::alias_hint::inject_alias_hint(&mut redacted);
+                }
                 let out = serde_json::to_vec(&redacted)
                     .map_err(|_| (StatusCode::BAD_GATEWAY, "re-encode").into_response())?;
                 Ok(Bytes::from(out))

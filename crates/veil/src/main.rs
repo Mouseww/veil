@@ -141,8 +141,9 @@ async fn serve(data_dir: &std::path::Path, cfg: &Config) -> Result<(), Box<dyn s
     let store = SqliteStore::open(data_dir.join("mappings.db"), &key)
         .map_err(|e| format!("mapping store: {e}"))?;
     let traffic = TrafficLog::default();
-    let state = AppState::new(Arc::new(store), UpstreamConfig::from(cfg), limit)
+    let mut state = AppState::new(Arc::new(store), UpstreamConfig::from(cfg), limit)
         .with_traffic(traffic.clone());
+    state.alias_hint = cfg.alias_hint;
     let loopback = cfg.bind == "127.0.0.1" || cfg.bind == "localhost" || cfg.bind == "::1";
     let admin = AdminState {
         data_dir: data_dir.to_path_buf(),

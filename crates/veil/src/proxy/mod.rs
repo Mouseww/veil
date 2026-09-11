@@ -1,3 +1,4 @@
+mod alias_hint;
 mod classify;
 mod forward;
 mod sse;

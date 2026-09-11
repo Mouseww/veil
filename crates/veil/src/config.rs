@@ -94,6 +94,9 @@ pub struct Config {
     pub rules: Vec<RuleConfig>,
     #[serde(default = "default_allowlist")]
     pub allowlist: Vec<String>,
+    /// Tell the model that {{TYPE_ULID}} aliases will be restored for the user.
+    #[serde(default = "bool_true")]
+    pub alias_hint: bool,
 }
 
 fn default_allowlist() -> Vec<String> {
@@ -125,6 +128,7 @@ impl Default for Config {
             routes: Vec::new(),
             rules: Vec::new(),
             allowlist: default_allowlist(),
+            alias_hint: true,
         }
     }
 }
