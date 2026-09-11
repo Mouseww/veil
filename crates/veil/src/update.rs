@@ -271,18 +271,26 @@ pub fn current_exe() -> Result<PathBuf, Error> {
     std::env::current_exe().map_err(Error::from)
 }
 
+/// `veil.exe` → `veil.exe.new` (not `veil.new`).
+pub fn staged_next_to(exe: &Path) -> PathBuf {
+    let mut name = exe.file_name().unwrap_or_default().to_os_string();
+    name.push(".new");
+    exe.with_file_name(name)
+}
+
 pub fn schedule_replace(current: &Path, staged: &Path) -> Result<(), Error> {
     #[cfg(windows)]
     {
-        let bat = current.with_extension("update.bat");
+        let bat = current.with_file_name("veil-update.bat");
         let script = format!(
-            "@echo off\r\ntimeout /t 2 /nobreak >nul\r\nmove /y \"{staged}\" \"{current}\"\r\nstart \"\" \"{current}\"\r\ndel \"%~f0\"\r\n",
+            "@echo off\r\ncd /d \"{dir}\"\r\ntimeout /t 3 /nobreak >nul\r\ntaskkill /IM veil.exe /F >nul 2>&1\r\ntaskkill /IM dgw.exe /F >nul 2>&1\r\ntimeout /t 1 /nobreak >nul\r\nmove /y \"{staged}\" \"{current}\"\r\nstart \"\" \"{current}\"\r\ndel \"%~f0\"\r\n",
+            dir = current.parent().unwrap_or(current).display(),
             staged = staged.display(),
             current = current.display()
         );
         std::fs::write(&bat, script)?;
         std::process::Command::new("cmd")
-            .args(["/C", "start", "/min", "", &bat.to_string_lossy()])
+            .args(["/C", "start", "", "/min", &bat.to_string_lossy()])
             .spawn()?;
         Ok(())
     }
@@ -299,8 +307,9 @@ pub fn schedule_replace(current: &Path, staged: &Path) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_latest_json, verify_sha256, version_newer};
+    use super::{parse_latest_json, staged_next_to, verify_sha256, version_newer};
     use sha2::{Digest, Sha256};
+    use std::path::Path;
 
     #[test]
     fn parses_github_release_json() {
@@ -310,6 +319,12 @@ mod tests {
         assert!(url.contains("veil-linux-x64"));
         assert!(api.contains("/releases/assets/"));
         assert!(sums.unwrap().contains("SHA256SUMS"));
+    }
+
+    #[test]
+    fn stages_as_exe_new() {
+        let p = staged_next_to(Path::new("C:/app/veil.exe"));
+        assert!(p.ends_with("veil.exe.new"), "{p:?}");
     }
 
     #[test]

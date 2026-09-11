@@ -1772,7 +1772,7 @@ checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "veil"
-version = "0.3.3"
+version = "0.3.5"
 dependencies = [
  "axum",
  "base64",
@@ -1799,7 +1799,7 @@ dependencies = [
 
 [[package]]
 name = "veil-engine"
-version = "0.3.3"
+version = "0.3.5"
 dependencies = [
  "fancy-regex",
  "hex",
@@ -1815,7 +1815,7 @@ dependencies = [
 
 [[package]]
 name = "veil-store"
-version = "0.3.3"
+version = "0.3.5"
 dependencies = [
  "aes-gcm",
  "hkdf",

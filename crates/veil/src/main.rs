@@ -294,11 +294,10 @@ async fn cmd_update(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let exe = update::current_exe()?;
-    let staged = exe.with_extension("new");
-    println!("downloading {}", info.url);
+    let staged = update::staged_next_to(&exe);
+    println!("downloading {}", info.asset);
     update::download_and_stage(&staged).await?;
-    let _ = process::stop(&default_data_dir());
     update::schedule_replace(&exe, &staged)?;
-    println!("restarting with {}", info.latest);
+    println!("saved {}. a helper will swap the exe and restart in a few seconds — you can close this window.", info.latest);
     Ok(())
 }

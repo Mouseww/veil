@@ -429,7 +429,7 @@ pub async fn post_update(State(state): State<AdminState>, headers: HeaderMap) ->
         Ok(p) => p,
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
     };
-    let staged = exe.with_extension("new");
+    let staged = crate::update::staged_next_to(&exe);
     let info = match crate::update::download_and_stage(&staged).await {
         Ok(i) => i,
         Err(e) => return (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
