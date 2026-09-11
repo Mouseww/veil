@@ -8,9 +8,10 @@ use veil::admin::{self, AdminState, TrafficLog};
 use veil::clients;
 use veil::config::Config;
 use veil::data_dir::default_data_dir;
+use veil::logging;
 use veil::master_key::load_or_create;
 use veil::process::{self, StartOutcome};
-use veil::proxy::{router, AppState, UpstreamConfig};
+use veil::proxy::{router, AppState, ProtocolFamily, UpstreamConfig};
 use veil::setup::{self, DEFAULT_PROXY_URL};
 use veil::update;
 use veil_store::SqliteStore;
@@ -134,6 +135,7 @@ async fn cmd_start(foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn serve(data_dir: &std::path::Path, cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    logging::init(data_dir);
     let limit = (cfg.request_body_limit_mib.saturating_mul(1024 * 1024)) as usize;
     let key = load_or_create(data_dir, cfg.mode)?;
     let store = SqliteStore::open(data_dir.join("mappings.db"), &key)
@@ -164,6 +166,11 @@ async fn serve(data_dir: &std::path::Path, cfg: &Config) -> Result<(), Box<dyn s
         let listener = TcpListener::bind(&bind).await?;
         let mut st = state.clone();
         st.upstream = UpstreamConfig::for_route(cfg, route);
+        st.default_family = match route.kind.as_str() {
+            "anthropic" => Some(ProtocolFamily::Anthropic),
+            "openai" => Some(ProtocolFamily::OpenAiCompletions),
+            _ => None,
+        };
         let app = router(st);
         _route_servers.push(tokio::spawn(
             async move { axum::serve(listener, app).await },

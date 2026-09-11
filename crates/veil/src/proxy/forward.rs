@@ -14,8 +14,9 @@ use veil_engine::mapping::MappingStore;
 use veil_engine::rules::RuleSet;
 use veil_engine::walk::{desensitize_json, WalkError};
 
-use super::classify::{classify, upstream_base, UpstreamConfig};
+use super::classify::{classify, upstream_base, ProtocolFamily, UpstreamConfig};
 use crate::admin::{now_unix_ms, TrafficEvent, TrafficLog};
+use crate::logging;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -25,6 +26,7 @@ pub struct AppState {
     pub rules: Arc<RuleSet>,
     pub client: reqwest::Client,
     pub traffic: TrafficLog,
+    pub default_family: Option<ProtocolFamily>,
 }
 
 impl AppState {
@@ -43,6 +45,7 @@ impl AppState {
                 .build()
                 .expect("reqwest client"),
             traffic: TrafficLog::default(),
+            default_family: None,
         }
     }
 
@@ -73,21 +76,39 @@ async fn proxy_inner(
     let headers = req.headers().clone();
     let started = std::time::Instant::now();
 
-    let Some(family) = classify(&path) else {
-        record_traffic(
-            state,
-            &method_s,
-            &path,
-            404,
-            false,
-            vec![],
-            vec![],
-            started,
-            Some("not_found"),
-            "",
-        );
-        return Err((StatusCode::NOT_FOUND, "not found").into_response());
+    let family = match classify(&path) {
+        Some(f) => f,
+        None => match state.default_family {
+            Some(f) => f,
+            None => {
+                logging::proxy(&[("event", "miss"), ("method", &method_s), ("path", &path)]);
+                record_traffic(
+                    state,
+                    &method_s,
+                    &path,
+                    404,
+                    false,
+                    vec![],
+                    vec![],
+                    started,
+                    Some("not_found"),
+                    "",
+                );
+                return Err((StatusCode::NOT_FOUND, "not found").into_response());
+            }
+        },
     };
+    let fam = match family {
+        ProtocolFamily::Anthropic => "anthropic",
+        ProtocolFamily::OpenAiCompletions => "openai_chat",
+        ProtocolFamily::OpenAiResponses => "openai_resp",
+    };
+    logging::proxy(&[
+        ("event", "req"),
+        ("method", &method_s),
+        ("path", &path),
+        ("family", fam),
+    ]);
 
     if is_multipart(&headers) {
         return Err((StatusCode::UNSUPPORTED_MEDIA_TYPE, "multipart rejected").into_response());
@@ -135,10 +156,14 @@ async fn proxy_inner(
     }
     builder = builder.body(body);
 
-    let upstream = builder
-        .send()
-        .await
-        .map_err(|_| (StatusCode::BAD_GATEWAY, "upstream error").into_response())?;
+    let upstream = builder.send().await.map_err(|e| {
+        logging::proxy(&[
+            ("event", "up_err"),
+            ("path", &path),
+            ("err", &e.to_string()),
+        ]);
+        (StatusCode::BAD_GATEWAY, "upstream error").into_response()
+    })?;
 
     let status =
         StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
@@ -155,13 +180,17 @@ async fn proxy_inner(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
         .to_ascii_lowercase();
-    let bytes = upstream
-        .bytes()
-        .await
-        .map_err(|_| (StatusCode::BAD_GATEWAY, "upstream body").into_response())?;
-    let out = restore_response(state, &headers, &content_type, &bytes)?;
     let streaming = content_type.contains("event-stream");
     let (hit_types, hit_counts) = tally_hits(state, &raw);
+    let hits = hit_types.join(",");
+    logging::proxy(&[
+        ("event", "up"),
+        ("path", &path),
+        ("status", &status.as_u16().to_string()),
+        ("stream", if streaming { "1" } else { "0" }),
+        ("hits", &hits),
+        ("ms", &started.elapsed().as_millis().to_string()),
+    ]);
     record_traffic(
         state,
         &method_s,
@@ -174,8 +203,75 @@ async fn proxy_inner(
         None,
         &creator.prefix8(),
     );
+
+    if streaming {
+        return stream_sse(response, upstream, Arc::clone(&state.store), creator);
+    }
+
+    let bytes = upstream
+        .bytes()
+        .await
+        .map_err(|_| (StatusCode::BAD_GATEWAY, "upstream body").into_response())?;
+    let out = restore_response(state, &headers, &content_type, &bytes)?;
     response
         .body(Body::from(out))
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "response").into_response())
+}
+
+fn stream_sse(
+    response: axum::http::response::Builder,
+    upstream: reqwest::Response,
+    store: Arc<dyn MappingStore + Send + Sync>,
+    creator: veil_engine::creator::Creator,
+) -> Result<Response, Response> {
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Bytes, std::io::Error>>(64);
+    tokio::spawn(async move {
+        use futures_util::StreamExt;
+        let mut restorer = super::sse::SseRestorer::new(store.as_ref(), creator);
+        let mut stream = upstream.bytes_stream();
+        while let Some(item) = stream.next().await {
+            match item {
+                Ok(chunk) => {
+                    let text = String::from_utf8_lossy(&chunk);
+                    match restorer.push(&text) {
+                        Ok(s) if !s.is_empty() => {
+                            if tx.send(Ok(Bytes::from(s))).await.is_err() {
+                                break;
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(_) => {
+                            let _ = tx
+                                .send(Ok(Bytes::from(
+                                    "event: error\ndata: {\"error\":{\"type\":\"veil_restore_failed\"}}\n\n",
+                                )))
+                                .await;
+                            break;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let _ = tx
+                        .send(Err(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            e.to_string(),
+                        )))
+                        .await;
+                    break;
+                }
+            }
+        }
+        if let Ok(tail) = restorer.flush() {
+            if !tail.is_empty() {
+                let _ = tx.send(Ok(Bytes::from(tail))).await;
+            }
+        }
+    });
+    let body_stream = futures_util::stream::unfold(rx, |mut rx| async move {
+        rx.recv().await.map(|item| (item, rx))
+    });
+    response
+        .body(Body::from_stream(body_stream))
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "response").into_response())
 }
 

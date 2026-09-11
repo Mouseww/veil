@@ -1,3 +1,25 @@
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+static DATA_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+pub fn init(data_dir: &Path) {
+    if let Ok(mut g) = DATA_DIR.lock() {
+        *g = Some(data_dir.to_path_buf());
+    }
+}
+
+/// Log a proxy event (no secrets). Also prints to stderr when running in foreground.
+pub fn proxy(fields: &[(&str, &str)]) {
+    let line = format_event(fields);
+    eprintln!("[veil] {line}");
+    if let Ok(g) = DATA_DIR.lock() {
+        if let Some(dir) = g.as_ref() {
+            let _ = log_event(dir, fields);
+        }
+    }
+}
+
 /// Format a structured log event as compact JSON.
 ///
 /// Callers must never pass secrets (bodies, tokens, master keys, raw hits).
