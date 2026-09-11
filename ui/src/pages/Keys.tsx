@@ -10,8 +10,8 @@ export default function KeysPage() {
   const [err, setErr] = useState("");
   return (
     <section>
-      <h2>{t.keysTitle}</h2>
-      <p className="muted">{t.keysHint}</p>
+      <h1>{t.keysTitle}</h1>
+      <p className="help">{t.helpKeys}</p>
       {msg && <p className="flash">{msg}</p>}
       {err && <p className="err">{err}</p>}
       <label>{t.newKey}<input value={hex} onChange={(e) => setHex(e.target.value)} /></label>

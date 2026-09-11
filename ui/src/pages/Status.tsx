@@ -17,8 +17,8 @@ export default function StatusPage() {
   const base = "http://" + s.bind + ":" + s.proxy_port;
   return (
     <section>
-      <h2>{t.startTitle}</h2>
-      <p className="kicker">{t.startKicker}</p>
+      <h1>{t.startTitle}</h1>
+      <p className="help">{t.helpStart}</p>
       <ol className="steps">
         <li>
           <strong>{t.step1}</strong>

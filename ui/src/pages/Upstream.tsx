@@ -19,7 +19,8 @@ export default function UpstreamPage() {
   const base = "http://" + bind + ":" + proxy;
   return (
     <section>
-      <h2>{t.upTitle}</h2>
+      <h1>{t.upTitle}</h1>
+      <p className="help">{t.helpUp}</p>
       {flash && <p className="flash">{flash}</p>}
       <label>Anthropic<input value={a} onChange={(e) => setA(e.target.value)} /></label>
       <label>OpenAI chat<input value={c} onChange={(e) => setC(e.target.value)} /></label>

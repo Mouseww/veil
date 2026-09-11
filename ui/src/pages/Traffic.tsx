@@ -8,7 +8,8 @@ export function TrafficTable({ events }: { events: TrafficEvent[] }) {
   const { t } = useT();
   return (
     <section>
-      <h2><span className="live" />{t.trafficTitle}</h2>
+      <h1>{t.trafficTitle}</h1>
+      <p className="help">{t.helpTraffic}</p>
       <table>
         <thead>
           <tr>{COLUMNS.map((c) => <th key={c}>{c}</th>)}</tr>

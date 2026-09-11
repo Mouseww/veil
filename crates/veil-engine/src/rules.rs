@@ -15,6 +15,8 @@ pub struct Rule {
     pub matcher: Matcher,
     pub priority: i32,
     pub timeout_ms: u64,
+    /// Original regex source, when `matcher` is regex.
+    pub pattern: Option<String>,
 }
 
 /// How a rule locates candidate spans in plaintext.
@@ -73,6 +75,7 @@ impl Rule {
             matcher: Matcher::Regex(re),
             priority,
             timeout_ms: DEFAULT_TIMEOUT_MS,
+            pattern: Some(pattern.to_string()),
         }
     }
 
@@ -92,6 +95,14 @@ impl Rule {
             matcher: Matcher::Dictionary(words),
             priority,
             timeout_ms: DEFAULT_TIMEOUT_MS,
+            pattern: None,
+        }
+    }
+
+    pub fn words(&self) -> Option<&[String]> {
+        match &self.matcher {
+            Matcher::Dictionary(w) => Some(w),
+            _ => None,
         }
     }
 
@@ -122,6 +133,7 @@ impl Rule {
             matcher: Matcher::Ip,
             priority,
             timeout_ms: DEFAULT_TIMEOUT_MS,
+            pattern: None,
         }
     }
 }
@@ -408,6 +420,7 @@ mod tests {
             matcher: Matcher::Regex(re),
             priority: 1,
             timeout_ms: DEFAULT_TIMEOUT_MS,
+            pattern: None,
         };
         let phone = Rule::regex("phone", "PHONE", r"1[3-9]\d{9}", 50);
         let set = ruleset(vec![evil, phone]);

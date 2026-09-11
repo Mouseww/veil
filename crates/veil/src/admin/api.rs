@@ -118,8 +118,8 @@ pub async fn get_rules(State(state): State<AdminState>, headers: HeaderMap) -> i
                 priority: r.priority,
                 kind: r.kind().to_string(),
                 source: String::from("builtin"),
-                pattern: None,
-                words: None,
+                pattern: r.pattern.clone(),
+                words: r.words().map(|w| w.to_vec()),
             })
             .collect();
         return Json(views).into_response();
