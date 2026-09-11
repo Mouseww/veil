@@ -69,6 +69,12 @@ const STR = {
     resetToken: "reset admin token",
     tokenStored: "new admin token stored in this session",
     trafficTitle: "Live traffic",
+    version: "version",
+    checkUpdate: "Check for updates",
+    updateNow: "Update now",
+    upToDate: "up to date",
+    updateAvail: "update available",
+    updating: "downloading and restarting…",
   },
   zh: {
     tagline: "敏感信息不出网",
@@ -136,6 +142,12 @@ const STR = {
     resetToken: "重置管理令牌",
     tokenStored: "新管理令牌已存入本会话",
     trafficTitle: "实时流量",
+    version: "版本",
+    checkUpdate: "检查更新",
+    updateNow: "立即更新",
+    upToDate: "已是最新",
+    updateAvail: "有新版本",
+    updating: "正在下载并重启…",
   },
 } as const;
 

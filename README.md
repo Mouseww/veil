@@ -40,6 +40,22 @@ macOS / Linux: download the matching binary from Releases, run `./veil`, then `.
 
 Proxy `http://127.0.0.1:18787` · Console `http://127.0.0.1:18788`
 
+## Updating
+
+From **v0.2+** (the `veil` binary):
+
+```bat
+veil update
+```
+
+Or in the console: **Check for updates** → **Update now**. Veil downloads the latest GitHub release, verifies SHA-256, replaces itself, and restarts.
+
+From **v0.1** (`dgw.exe`): run the install command above again. It installs `veil.exe` alongside. Then use `veil update` next time.
+
+```powershell
+irm https://raw.githubusercontent.com/Mouseww/veil/main/scripts/install.ps1 | iex
+```
+
 ## When you actually need this
 
 **Debugging with real data.** The incident is in production. The agent needs the DSN, the Redis URL, the JWT. Let it see the *shape*, not the secret.
@@ -104,6 +120,7 @@ Add regex or dictionary rules in the console. Dry-run a sample before you save. 
 |---|---|
 | `veil` | start and open the console |
 | `veil setup` | pick apps, write their Base URL |
+| `veil update` | install the latest GitHub release |
 | `veil status` / `veil stop` | |
 
 `VEIL_DATA_DIR`, `VEIL_MASTER_KEY`, `VEIL_BIND`, `VEIL_MODE=server` if you need them. Legacy `DGW_*` still works.

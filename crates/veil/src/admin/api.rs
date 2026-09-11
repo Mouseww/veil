@@ -50,6 +50,7 @@ pub struct StatusBody {
     pub master_key_set: bool,
     pub rule_count: usize,
     pub last_error_class: Option<String>,
+    pub version: &'static str,
 }
 
 pub async fn get_status(State(state): State<AdminState>, headers: HeaderMap) -> impl IntoResponse {
@@ -81,6 +82,7 @@ pub async fn get_status(State(state): State<AdminState>, headers: HeaderMap) -> 
         master_key_set,
         rule_count: builtin_ruleset().rules().len().max(cfg.rules.len()),
         last_error_class,
+        version: crate::update::current_version(),
     })
     .into_response()
 }
@@ -407,4 +409,40 @@ pub async fn post_reset_token(
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
     Json(serde_json::json!({"token": token})).into_response()
+}
+
+pub async fn get_update(State(state): State<AdminState>, headers: HeaderMap) -> impl IntoResponse {
+    if let Err(code) = require_token(&state, &headers, false) {
+        return code.into_response();
+    }
+    match crate::update::check().await {
+        Ok(info) => Json(info).into_response(),
+        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+    }
+}
+
+pub async fn post_update(State(state): State<AdminState>, headers: HeaderMap) -> impl IntoResponse {
+    if let Err(code) = require_token(&state, &headers, false) {
+        return code.into_response();
+    }
+    let exe = match crate::update::current_exe() {
+        Ok(p) => p,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    };
+    let staged = exe.with_extension("new");
+    let info = match crate::update::download_and_stage(&staged).await {
+        Ok(i) => i,
+        Err(e) => return (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+    };
+    if !info.newer {
+        return Json(info).into_response();
+    }
+    if let Err(e) = crate::update::schedule_replace(&exe, &staged) {
+        return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+    }
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        std::process::exit(0);
+    });
+    Json(serde_json::json!({"restarting": true, "latest": info.latest})).into_response()
 }

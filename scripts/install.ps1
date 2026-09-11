@@ -1,9 +1,11 @@
-﻿# Veil one-click install for Windows
+# Veil one-click install for Windows
 $ErrorActionPreference = "Stop"
 $repo = "Mouseww/veil"
 $dir = Join-Path $env:LOCALAPPDATA "veil"
 $exe = Join-Path $dir "veil.exe"
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
+Get-Process veil,dgw -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+if (Get-Command veil -ErrorAction SilentlyContinue) { try { veil stop } catch {} }
 $rel = Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest"
 $asset = $rel.assets | Where-Object { $_.name -eq "veil-windows-x64.exe" } | Select-Object -First 1
 if (-not $asset) { throw "Release has no veil-windows-x64.exe yet. Download it from GitHub Releases." }

@@ -42,6 +42,7 @@ export type StatusBody = {
   master_key_set: boolean;
   rule_count: number;
   last_error_class: string | null;
+  version?: string;
 };
 
 let adminToken = sessionStorage.getItem("veil_admin") ?? "";
@@ -79,6 +80,8 @@ export const api = {
   rotateKey: (new_key: string) => req<{ rotated: boolean }>("/api/master-key", { method: "POST", body: JSON.stringify({ new_key }) }),
   purge: (creator_prefix?: string) => req<{ purged: boolean }>("/api/mappings/purge", { method: "POST", body: JSON.stringify({ creator_prefix }) }),
   resetToken: () => req<{ token: string }>("/api/admin-token/reset", { method: "POST" }),
+  checkUpdate: () => req<{ current: string; latest: string; newer: boolean; asset: string; url: string }>("/api/update"),
+  applyUpdate: () => req<{ restarting?: boolean; latest?: string; current?: string; newer?: boolean }>("/api/update", { method: "POST" }),
   traffic: async () => {
     const text = await req<string>("/api/traffic");
     const line = String(text).split("\n").find((l) => l.startsWith("data: "));

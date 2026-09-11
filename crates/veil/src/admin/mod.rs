@@ -33,6 +33,7 @@ pub fn router(state: AdminState) -> Router {
         .route("/api/mappings/purge", post(api::post_purge))
         .route("/api/traffic", get(api::get_traffic))
         .route("/api/admin-token/reset", post(api::post_reset_token))
+        .route("/api/update", get(api::get_update).post(api::post_update))
         .fallback(get(static_file))
         .with_state(state)
 }

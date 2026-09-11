@@ -12,6 +12,7 @@ use veil::master_key::load_or_create;
 use veil::process::{self, StartOutcome};
 use veil::proxy::{router, AppState, UpstreamConfig};
 use veil::setup::{self, DEFAULT_PROXY_URL};
+use veil::update;
 use veil_store::SqliteStore;
 
 #[tokio::main]
@@ -35,6 +36,7 @@ async fn dispatch(
         "stop" => cmd_stop(),
         "status" => cmd_status(),
         "setup" => cmd_setup(args),
+        "update" => cmd_update(args).await,
         "ui" => cmd_ui(true),
         "help" | "-h" | "--help" => {
             print_help();
@@ -58,6 +60,7 @@ fn print_help() {
     eprintln!("  veil start --foreground");
     eprintln!("  veil setup [--clients LIST] [--upstream URL]");
     eprintln!("      clients: claude,codex,pi,codebuddy,grok,hermes,trae,all");
+    eprintln!("  veil update [--check]   download latest GitHub release");
     eprintln!("  veil ui                 open the console");
     eprintln!("  veil status");
     eprintln!("  veil stop");
@@ -275,5 +278,27 @@ fn cmd_setup(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     println!();
     println!("Restart the selected apps. API keys stay in the client; Veil pass-throughs them.");
+    Ok(())
+}
+
+async fn cmd_update(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
+    let check_only = args.iter().any(|a| a == "--check");
+    let info = update::check().await?;
+    println!("current {}  latest {}", info.current, info.latest);
+    if !info.newer {
+        println!("already up to date");
+        return Ok(());
+    }
+    if check_only {
+        println!("update available: {}", info.asset);
+        return Ok(());
+    }
+    let exe = update::current_exe()?;
+    let staged = exe.with_extension("new");
+    println!("downloading {}", info.url);
+    update::download_and_stage(&staged).await?;
+    let _ = process::stop(&default_data_dir());
+    update::schedule_replace(&exe, &staged)?;
+    println!("restarting with {}", info.latest);
     Ok(())
 }

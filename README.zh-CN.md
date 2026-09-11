@@ -40,6 +40,22 @@ macOS / Linux：下载对应二进制，`./veil` 然后 `./veil setup`。
 
 代理 `http://127.0.0.1:18787` · 管理页 `http://127.0.0.1:18788`
 
+## 如何更新
+
+已经是 **v0.2+**（`veil.exe`）：
+
+```bat
+veil update
+```
+
+或在管理页点 **检查更新** → **立即更新**。会从 GitHub 拉最新包、校验 SHA-256、替换自身并重启。
+
+还在用 **v0.1**（`dgw.exe`）：再跑一遍安装脚本，装上 `veil.exe`。以后用 `veil update`。
+
+```powershell
+irm https://raw.githubusercontent.com/Mouseww/veil/main/scripts/install.ps1 | iex
+```
+
 ## 什么时候真的用得上
 
 **对着真实数据排障。** 生产库挂了，助手需要 DSN、Redis、JWT。让它看见结构，不必看见秘密。
@@ -104,6 +120,7 @@ API Key / Token **永远用上游那份**，填在 IDE 里。Veil 透传 `Author
 |---|---|
 | `veil` | 启动并打开管理页 |
 | `veil setup` | 选择应用并写入 Base URL |
+| `veil update` | 安装 GitHub 上的最新版 |
 | `veil status` / `veil stop` | 查看 / 停止 |
 
 进阶：`VEIL_DATA_DIR`、`VEIL_MASTER_KEY`、`VEIL_BIND`、`VEIL_MODE=server`。旧的 `DGW_*` 仍然有效。
