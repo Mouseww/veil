@@ -2,7 +2,15 @@ use serde_json::{json, Value};
 
 pub const MARK: &str = "VEIL_ALIAS_HINT";
 
-pub const HINT: &str = "VEIL_ALIAS_HINT: Tokens matching {{TYPE_26CHARS}} are aliases for real values the user can already see. Treat each alias as that real entity. When you repeat, quote, or use it, output the whole alias token unchanged. Never say you cannot see the original. Never invent digits or take a substring of the token.\n化名说明：形如 {{TYPE_26位}} 的记号是用户能看见的真值的化名。请把它当成真实内容来推理和作答。需要复述或使用时，原样输出整个化名，不要说看不见原文，不要从记号里拆字或编造后几位。";
+/// Do not call these tokens placeholders — that makes the model refuse.
+pub const HINT: &str = concat!(
+    "VEIL_ALIAS_HINT\n",
+    "Strings of the form {{A-Z0-9_}} in this request are the actual values for this task. ",
+    "You already have them. If the user asks you to tell, repeat, or use one, copy that exact string. ",
+    "Do not say it is missing, redacted, a template, or unknown. Do not invent other characters.\n",
+    "本请求里形如 {{A-Z0-9_}} 的字符串就是本题要用的值，你已经拿到了。",
+    "用户让你说出或使用它时，原样复制整串。不要说没有、被打码、是模板或未知，不要另编字符。",
+);
 
 pub fn inject_alias_hint(value: &mut Value) {
     if contains_mark(value) {
@@ -11,27 +19,41 @@ pub fn inject_alias_hint(value: &mut Value) {
     let Some(obj) = value.as_object_mut() else {
         return;
     };
-    if let Some(sys) = obj.get_mut("system") {
-        prepend_system(sys);
-        return;
-    }
-    if let Some(ins) = obj.get_mut("instructions") {
-        if let Value::String(s) = ins {
-            *s = format!("{HINT}\n\n{s}");
-            return;
+    let has_top_system = obj.contains_key("system");
+    let has_instructions = obj.contains_key("instructions");
+    let openai_system = obj
+        .get("messages")
+        .and_then(|m| m.as_array())
+        .is_some_and(|msgs| {
+            msgs.iter()
+                .any(|m| m.get("role").and_then(|r| r.as_str()) == Some("system"))
+        });
+
+    if has_top_system {
+        if let Some(sys) = obj.get_mut("system") {
+            append_system(sys);
         }
-    }
-    if let Some(Value::Array(msgs)) = obj.get_mut("messages") {
-        if let Some(first) = msgs.first_mut() {
-            if first.get("role").and_then(|r| r.as_str()) == Some("system") {
-                prepend_message_content(first);
-                return;
+    } else if has_instructions {
+        if let Some(Value::String(s)) = obj.get_mut("instructions") {
+            s.push_str("\n\n");
+            s.push_str(HINT);
+        }
+    } else if openai_system {
+        if let Some(Value::Array(msgs)) = obj.get_mut("messages") {
+            if let Some(sys) = msgs
+                .iter_mut()
+                .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("system"))
+            {
+                append_message_content(sys);
             }
         }
-        msgs.insert(0, json!({"role": "system", "content": HINT}));
-        return;
+    } else if obj.get("messages").is_some() {
+        obj.insert("system".into(), Value::String(HINT.into()));
     }
-    obj.insert("system".into(), Value::String(HINT.into()));
+
+    if let Some(Value::Array(msgs)) = obj.get_mut("messages") {
+        append_to_last_user(msgs);
+    }
 }
 
 fn contains_mark(value: &Value) -> bool {
@@ -43,24 +65,30 @@ fn contains_mark(value: &Value) -> bool {
     }
 }
 
-fn prepend_system(sys: &mut Value) {
+fn append_system(sys: &mut Value) {
     match sys {
-        Value::String(s) => *s = format!("{HINT}\n\n{s}"),
+        Value::String(s) => {
+            s.push_str("\n\n");
+            s.push_str(HINT);
+        }
         Value::Array(blocks) => {
-            blocks.insert(0, json!({"type": "text", "text": HINT}));
+            blocks.push(json!({"type": "text", "text": HINT}));
         }
         other => *other = Value::String(HINT.into()),
     }
 }
 
-fn prepend_message_content(msg: &mut Value) {
+fn append_message_content(msg: &mut Value) {
     let Some(obj) = msg.as_object_mut() else {
         return;
     };
     match obj.get_mut("content") {
-        Some(Value::String(s)) => *s = format!("{HINT}\n\n{s}"),
+        Some(Value::String(s)) => {
+            s.push_str("\n\n");
+            s.push_str(HINT);
+        }
         Some(Value::Array(blocks)) => {
-            blocks.insert(0, json!({"type": "text", "text": HINT}));
+            blocks.push(json!({"type": "text", "text": HINT}));
         }
         _ => {
             obj.insert("content".into(), Value::String(HINT.into()));
@@ -68,35 +96,49 @@ fn prepend_message_content(msg: &mut Value) {
     }
 }
 
+fn append_to_last_user(msgs: &mut [Value]) {
+    let Some(last) = msgs
+        .iter_mut()
+        .rev()
+        .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))
+    else {
+        return;
+    };
+    append_message_content(last);
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{inject_alias_hint, HINT, MARK};
+    use super::{inject_alias_hint, MARK};
     use serde_json::json;
 
     #[test]
-    fn prepends_anthropic_system_string() {
-        let mut v = json!({"model": "claude", "system": "be nice", "messages": []});
+    fn appends_after_existing_anthropic_system() {
+        let mut v = json!({"model": "claude", "system": "be nice", "messages": [{"role":"user","content":"hi"}]});
         inject_alias_hint(&mut v);
-        assert!(v["system"].as_str().unwrap().contains(MARK));
-        assert!(v["system"].as_str().unwrap().contains("be nice"));
+        let sys = v["system"].as_str().unwrap();
+        assert!(sys.starts_with("be nice"));
+        assert!(sys.contains(MARK));
+        assert!(v["messages"][0]["content"].as_str().unwrap().contains(MARK));
         inject_alias_hint(&mut v);
         assert_eq!(v["system"].as_str().unwrap().matches(MARK).count(), 1);
     }
 
     #[test]
-    fn inserts_openai_system_message() {
+    fn adds_top_level_system_for_anthropic_messages() {
         let mut v = json!({"messages": [{"role": "user", "content": "hi"}]});
         inject_alias_hint(&mut v);
-        assert_eq!(v["messages"][0]["role"], "system");
-        assert!(v["messages"][0]["content"].as_str().unwrap().contains(HINT));
-        assert_eq!(v["messages"][1]["role"], "user");
+        assert!(v["system"].as_str().unwrap().contains(MARK));
+        assert_eq!(v["messages"][0]["role"], "user");
+        assert!(v["messages"][0]["content"].as_str().unwrap().contains("hi"));
     }
 
     #[test]
-    fn anthropic_block_system() {
-        let mut v = json!({"system": [{"type": "text", "text": "x"}], "messages": []});
+    fn anthropic_block_system_appends() {
+        let mut v = json!({"system": [{"type": "text", "text": "x"}], "messages": [{"role":"user","content":"q"}]});
         inject_alias_hint(&mut v);
-        assert_eq!(v["system"][0]["text"], HINT);
-        assert_eq!(v["system"][1]["text"], "x");
+        let arr = v["system"].as_array().unwrap();
+        assert_eq!(arr[0]["text"], "x");
+        assert!(arr[1]["text"].as_str().unwrap().contains(MARK));
     }
 }
