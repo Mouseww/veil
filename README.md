@@ -1,26 +1,28 @@
-# Veil
+# Veil — a mask for your prompts
 
-A local AI privacy gateway: redact on the way out, restore on the way back. **The model never sees plaintext.**
+Talking to a model is sending text to someone else's house. Passwords, phone numbers, database URLs go with it.
+
+**Veil is a veil.** Secrets put on a mask before they leave. The mask comes off when the answer comes home. You still see the real words. The model only ever sees the mask.
 
 [中文说明](README.zh-CN.md) · [Releases](https://github.com/Mouseww/veil/releases/latest) · Apache-2.0 · no telemetry
 
-Inspired by [Data Maskit](https://github.com/xiaYuTian11/maskit) and the [LINUX DO thread](https://linux.do/t/topic/2884715). One local port for Anthropic **and** OpenAI-compatible APIs. Any product that lets you set a Base URL can use it.
+Any app that can set a Base URL can wear it: Claude Code, Cursor, Codex, Trae, your own script, a company relay. Not a closed list. Hat tip to [Maskit](https://github.com/xiaYuTian11/maskit).
 
 ---
 
-## What happens
+## On with the mask, off with the mask
 
-| Stage | Example |
-|---|---|
-| You type | `check mysql://root:Pass123@10.1.2.3:3306/app, phone 13800138000` |
-| Model sees | `check {{CONNSTR_…}}, phone {{PHONE_…}}` |
-| Model answers | `ping {{CONNSTR_…}} and ask {{PHONE_…}}` |
-| You see | the real DSN and number again |
+| | At home (you) | The mask | Outside (the model) |
+|---|---|---|---|
+| Leaving | `mysql://root:Pass123@10.1.2.3/app`, `13800138000` | `{{CONNSTR_…}}` `{{PHONE_…}}` | can reason, cannot see the face |
+| Coming back | you read the real DSN and number | the same mask is always the same face | it never knew there was a face |
 
-Auth is pass-through. Keep the **upstream** API key / login in the original app. Veil does not have its own key.
+Same secret, same mask, all conversation long.
+
+Keys stay in your app. Veil masks the **body**, not the ID card (auth headers pass through).
 
 ```
-your tool  --Base URL-->  http://127.0.0.1:18787  --redacted-->  upstream API
+your tool  --change Base URL-->  Veil on localhost  --then out-->  vendor / relay / LiteLLM
 ```
 
 ---

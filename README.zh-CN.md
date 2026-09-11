@@ -1,27 +1,30 @@
-# Veil
+# Veil · 给大模型戴上面具
 
-本地 AI 脱敏网关：请求出网前打码，回复回来再还原。**模型看不到明文。**
+跟 AI 聊天，等于把电脑里的字送到别人家里。密码、手机号、数据库地址，模型服务商都能看见。
 
-[English](README.md) · [Releases](https://github.com/Mouseww/veil/releases/latest) · Apache-2.0 · 无遥测
+**Veil 是一层面纱。** 出门（出网）先戴面具，回家（回复）再摘下来。你还是看原文；外面那台模型从头到尾只看见面具。
 
-灵感来自 [Data Maskit](https://github.com/xiaYuTian11/maskit) 与 [LINUX DO 讨论](https://linux.do/t/topic/2884715)。Veil 用一个本地端口承接 Anthropic / OpenAI 协议，任意能改 Base URL 的产品都可以接。
+[English](README.md) · [下载](https://github.com/Mouseww/veil/releases/latest) · Apache-2.0 · 无遥测
+
+任意能改 Base URL 的工具都能戴：Claude Code、Cursor、Codex、Trae、自写脚本、公司中转……不限名单。灵感致谢 [Maskit 数据面具](https://github.com/xiaYuTian11/maskit)。
 
 ---
 
-## 它实际在干什么
+## 面具怎么戴、怎么摘
 
-| 阶段 | 例子 |
-|---|---|
-| 你输入 | `查一下 mysql://root:Pass123@10.1.2.3:3306/app，电话 13800138000` |
-| 模型收到 | `查一下 {{CONNSTR_01ARZ3NDEKTSV4RRFFQ69G5FAV}}，电话 {{PHONE_01ARZ3NDEKTSV4RRFFQ69G5FAV}}` |
-| 模型回答 | `建议先 ping {{CONNSTR_…}}，让 {{PHONE_…}} 的同事确认` |
-| 你看到 | 连接串和手机号已经变回原文 |
+把机密想成一张没戴面具的脸：
 
-鉴权原样转发：API Key / Token / 官方登录都填在**原来的工具**里，Veil 不另要一份。
+| | 你这边 | 面具（占位符） | 外面的模型 |
+|---|---|---|---|
+| 出门 | `mysql://root:Pass123@10.1.2.3/app`，`13800138000` | `{{CONNSTR_…}}` `{{PHONE_…}}` | 只看见面具，能推理，看不见真脸 |
+| 回家 | 你看到的回答里已经是真连接串、真手机号 | 同一张面具始终对应同一张脸 | 它一直以为自己在讨论面具 |
+
+同一段密码，整场对话都戴同一张面具，模型不会把「张三」认成两个人。
+
+Key 不用交给 Veil：登录、API Key 还在原来的软件里，Veil 只给**正文**戴面具，证件（鉴权头）原样出门。
 
 ```
-任意工具  --Base URL-->  http://127.0.0.1:18787  --脱敏后-->  上游 API
-                         (Veil 本机)              Anthropic / OpenAI / LiteLLM / 中转
+你的工具  --改个地址-->  本机 Veil（戴/摘面具）  --再出门-->  官方 / 中转 / LiteLLM
 ```
 
 ---

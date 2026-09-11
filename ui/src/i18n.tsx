@@ -4,7 +4,7 @@ export type Lang = "zh" | "en";
 
 const STR = {
   en: {
-    tagline: "secrets stay on this machine",
+    tagline: "a mask for your prompts",
     tabStart: "Start",
     tabRules: "Rules",
     tabUpstream: "Upstream",
@@ -77,7 +77,7 @@ const STR = {
     updating: "downloading and restarting…",
     running: "Proxy running",
     stopped: "Cannot reach gateway",
-    helpStart: "This is the home page. Veil is already the local hop. Point your coding apps at it, then chat as usual. Official Claude login needs no extra key.",
+    helpStart: "Veil is a mask on localhost. Point any app that has a Base URL here, then chat as usual. The model sees placeholders; you see the real text again. Official Claude login needs no extra key.",
     helpRules: "Rules decide what gets replaced with placeholders before a request leaves your machine. Toggle a rule, expand it to edit the regex or dictionary, or add your own. Allowlist values are never replaced. Dry-run only runs locally — nothing is sent to the model.",
     helpUp: "Upstream is where Veil forwards traffic AFTER redacting. Official Anthropic stays as api.anthropic.com unless you use a company/LiteLLM gateway. Coding apps should use the client Base URL below (localhost), not the upstream URL.",
     helpKeys: "The master key encrypts the mapping table on disk. Rotating it makes old placeholders unrestorable. Purge deletes mappings for one API-key prefix. Resetting the admin token only affects this console.",
@@ -89,7 +89,7 @@ const STR = {
     builtinHint: "Built-in IP matching has no regex — it parses every IPv4/IPv6 token. You can still disable it.",
   },
   zh: {
-    tagline: "敏感信息不出网",
+    tagline: "给大模型戴上面具",
     tabStart: "开始",
     tabRules: "规则",
     tabUpstream: "上游",
@@ -162,7 +162,7 @@ const STR = {
     updating: "正在下载并重启…",
     running: "代理运行中",
     stopped: "连不上网关",
-    helpStart: "这是首页。Veil 已经是本机这一跳：把编程助手指过来，然后照常聊天。官方 Claude 登录不用另填 Key。",
+    helpStart: "Veil 是戴在本机上的面具。任何能改 Base URL 的工具指到这里，然后照常聊。模型只看见面具，你看见的还是原文。官方 Claude 登录不用另填 Key。",
     helpRules: "规则决定哪些内容在出网前被换成占位符。可以开关、展开编辑正则/词表，或自己加一条。白名单里的值永远不替换。试跑只在本机执行，不会发给模型。",
     helpUp: "上游是脱敏之后流量要去的真实 API。官方 Anthropic 默认 api.anthropic.com；公司网关 / LiteLLM 才改这里。编程助手应填写下面的客户端 Base URL（本机），不要填上游地址。",
     helpKeys: "主密钥用来加密磁盘上的映射表。轮换后旧占位符无法还原。清除会删掉某个 API Key 前缀下的映射。重置管理令牌只影响本控制台。",
