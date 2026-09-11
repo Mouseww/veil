@@ -1,4 +1,4 @@
-# DesensitizationGateway — Domain Glossary
+# Veil — Domain Glossary
 
 This file is a glossary only. No implementation details.
 
@@ -8,7 +8,7 @@ The project is licensed under Apache License 2.0.
 
 ## Product Name（产品名）
 
-The user-facing name is Desensitization Gateway. The binary, Claude Code plugin id, default data-directory folder, and environment-variable prefix are all `dgw` / `DGW_*`.
+The user-facing name is Veil. The binary, Claude Code plugin id, default data-directory folder, and environment-variable prefix are `veil` / `VEIL_*`. Legacy `dgw` / `DGW_*` is still accepted.
 
 ## Gateway（脱敏网关）
 
@@ -140,7 +140,7 @@ The Claude Code plugin that starts or points at the gateway and sets the client 
 
 ## Data Directory（数据目录）
 
-The local directory that holds the Mapping Store, Master Key file, pid/listen record, gateway config, logs, and the plugin's downloaded binary cache. One running process owns one Data Directory. Defaults: Windows `%LOCALAPPDATA%\dgw\` (Local, not Roaming); macOS `~/Library/Application Support/dgw/`; Linux `${XDG_DATA_HOME:-~/.local/share}/dgw/`. `DGW_DATA_DIR` overrides. It is never the current working directory or a git project folder.
+The local directory that holds the Mapping Store, Master Key file, pid/listen record, gateway config, logs, and the plugin's downloaded binary cache. One running process owns one Data Directory. Defaults: Windows `%LOCALAPPDATA%\veil\` (Local, not Roaming); macOS `~/Library/Application Support/veil/`; Linux `${XDG_DATA_HOME:-~/.local/share}/veil/`. `VEIL_DATA_DIR` (then `DGW_DATA_DIR`) overrides. An existing `dgw` data directory is reused if `veil` does not yet exist. It is never the current working directory or a git project folder.
 
 ## Default Ports（默认端口）
 

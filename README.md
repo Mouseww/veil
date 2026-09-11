@@ -1,48 +1,62 @@
 # Veil
 
-**敏感信息不出网。** 本地跑一个小代理，Claude Code / Cursor 照常聊天，手机号、身份证、数据库连接串、AK/SK 会在出网前被换成占位符，模型回复回来再自动还原。
+[中文](README.zh-CN.md)
 
-One-liner: *Keep secrets on your machine. The model never sees them.*
+**You paste a database password into Claude.** It leaves your laptop. It sits in a vendor log. It trains nothing useful and burns a lot of trust.
 
-## 30 秒上手（Windows）
+Veil is a tiny local proxy. Point Claude Code (or any OpenAI-compatible client) at it. Phone numbers, connection strings, keys, and IDs are replaced with placeholders **before** they go to the model. The reply comes back through Veil and the real values return. The model never saw them.
 
-1. 从 [Releases](https://github.com/Mouseww/DesensitizationGateway/releases) 下载 `dgw-windows-x64.exe`，放到任意目录。
-2. **双击它**（或在终端运行 `dgw`）。浏览器会打开管理页。
-3. 再打开一个终端，运行：
-
-```bat
-dgw setup
+```
+you  -->  Veil (localhost)  -->  Anthropic / OpenAI / LiteLLM
+          redact out                 restore in
 ```
 
-4. **重启 Claude Code**。之后正常聊天即可。官方订阅不用填 API Key。
+No account. No telemetry. Official Claude subscriptions keep working — Veil does not steal your login.
 
-一键安装（PowerShell）：
+## 30 seconds
+
+**Windows**
 
 ```powershell
-irm https://raw.githubusercontent.com/Mouseww/DesensitizationGateway/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Mouseww/veil/main/scripts/install.ps1 | iex
 ```
 
-## 它帮你挡什么
+Then, in a new terminal:
 
-内网 IP、手机号、身份证、数据库连接串、密钥/Token。规则可在管理页改，也可以试跑。
+```bat
+veil setup
+```
 
-## 命令
+Restart Claude Code. Chat as usual.
 
-| 命令 | 作用 |
-|---|---|
-| `dgw` | 启动并打开浏览器 |
-| `dgw setup` | 一键写入 Claude Code 配置 |
-| `dgw stop` | 停止 |
-| `dgw status` | 看是否在跑 |
+Or download `veil-windows-x64.exe` from [Releases](https://github.com/Mouseww/veil/releases), double-click it, run `veil setup`.
 
-代理地址：`http://127.0.0.1:18787` 　管理页：`http://127.0.0.1:18788`
-
-## 开发
+**From source**
 
 ```bash
-cargo test --workspace
-cd ui && npm test && npm run build
-node --test plugin/claude-code/scripts/dgw.test.mjs
+cargo run -p veil
+veil setup
 ```
 
-Apache-2.0. 无任何出网遥测。
+Proxy: `http://127.0.0.1:18787`  ·  Console: `http://127.0.0.1:18788`
+
+## What it hides
+
+Built-in: phone numbers, national IDs, parseable IPs (public included, loopback allowlisted), PEM blocks, `sk-` tokens, connection strings. Add your own regex or dictionary in the console. Dry-run a sample before you save.
+
+If Veil cannot prove a body is clean, it does **not** forward it.
+
+## Commands
+
+| | |
+|---|---|
+| `veil` | start + open the console |
+| `veil setup` | write Claude Code user settings |
+| `veil status` / `veil stop` | |
+
+Env (optional): `VEIL_DATA_DIR`, `VEIL_MASTER_KEY`, `VEIL_BIND`, `VEIL_MODE=server`. Legacy `DGW_*` still works.
+
+## License
+
+Apache-2.0. No outbound telemetry.
+

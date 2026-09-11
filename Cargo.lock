@@ -270,65 +270,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dgw"
-version = "0.1.0"
-dependencies = [
- "axum",
- "base64",
- "bytes",
- "dgw-engine",
- "dgw-store",
- "futures-util",
- "hex",
- "http",
- "http-body-util",
- "rand 0.8.8",
- "reqwest",
- "rust-embed",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tempfile",
- "thiserror",
- "tokio",
- "toml",
- "tower",
- "tower-http",
-]
-
-[[package]]
-name = "dgw-engine"
-version = "0.1.0"
-dependencies = [
- "fancy-regex",
- "hex",
- "http",
- "once_cell",
- "regex",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "thiserror",
- "ulid",
-]
-
-[[package]]
-name = "dgw-store"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "dgw-engine",
- "hkdf",
- "hmac",
- "rand 0.8.8",
- "rusqlite",
- "sha2 0.10.9",
- "tempfile",
- "ulid",
- "zeroize",
-]
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1828,6 +1769,65 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+
+[[package]]
+name = "veil"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64",
+ "bytes",
+ "futures-util",
+ "hex",
+ "http",
+ "http-body-util",
+ "rand 0.8.8",
+ "reqwest",
+ "rust-embed",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tower",
+ "tower-http",
+ "veil-engine",
+ "veil-store",
+]
+
+[[package]]
+name = "veil-engine"
+version = "0.1.0"
+dependencies = [
+ "fancy-regex",
+ "hex",
+ "http",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "thiserror",
+ "ulid",
+]
+
+[[package]]
+name = "veil-store"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "hkdf",
+ "hmac",
+ "rand 0.8.8",
+ "rusqlite",
+ "sha2 0.10.9",
+ "tempfile",
+ "ulid",
+ "veil-engine",
+ "zeroize",
+]
 
 [[package]]
 name = "version_check"

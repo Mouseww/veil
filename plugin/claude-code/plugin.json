@@ -1,6 +1,6 @@
 {
-  "name": "dgw",
+  "name": "veil",
   "version": "0.1.0",
-  "description": "Desensitization Gateway for Claude Code",
-  "dgw": { "version": "0.1.0", "repo": "Mouseww/DesensitizationGateway" }
+  "description": "Veil: keep secrets on your machine. The model never sees them.",
+  "veil": { "version": "0.1.0", "repo": "Mouseww/veil" }
 }

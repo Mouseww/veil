@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. The operator already chose **subagent-driven execution**: one fresh subagent per task, main agent only dispatches and reviews.
 
-**Goal:** Ship a local/internal AI desensitization reverse proxy (`dgw`) that redacts secrets in Anthropic Messages, OpenAI Chat Completions, and OpenAI Responses (including SSE restore), plus a management UI and a Claude Code plugin â€” without changing downstream request parameters.
+**Goal:** Ship a local/internal AI desensitization reverse proxy (`dgw`) that redacts secrets in Anthropic Messages, OpenAI Chat Completions, and OpenAI Responses (including SSE restore), plus a management UI and a Claude Code plugin â€?without changing downstream request parameters.
 
 **Architecture:** One Rust process listens on a Proxy Port (default 18787) and a Management Port (default 18788). The engine walks JSON string values, replaces hits with `{{TYPE_ULID}}` tokens, persists Creator-bound mappings in encrypted SQLite, and restores tokens on the response stream with a bounded sliding window. The Claude Code plugin starts that binary, chains any existing Base URL into the Upstream Target, and points user-level `ANTHROPIC_BASE_URL` at the Proxy Port.
 
@@ -87,9 +87,9 @@ docs/superpowers/plans/             # this plan
 
 - Protocols: Anthropic Messages, OpenAI Chat Completions, OpenAI Responses; same-prefix passthrough; multipart rejected; `count_tokens` is in-scope.
 - Do not add headers/query/path for tenancy. Creator = SHA-256 of `x-api-key` else `Authorization` else `api-key`, else `anonymous`.
-- Restore only when Creator matches. Miss/expired/other-creator â†’ emit token, `restore_miss`, do not abort. Abort only if the store cannot be queried and a valid placeholder appears.
+- Restore only when Creator matches. Miss/expired/other-creator â†?emit token, `restore_miss`, do not abort. Abort only if the store cannot be queried and a valid placeholder appears.
 - Scan only JSON/text string **values**. Headers, query, path, keys untouched except forcing upstream `Accept-Encoding: identity` on scannable requests.
-- Fail-closed A1. Request body default 32 MiB, hard cap 128 MiB â†’ 413.
+- Fail-closed A1. Request body default 32 MiB, hard cap 128 MiB â†?413.
 - Sliding-window SSE restore. Placeholder `{{TYPE_ULID}}` with Crockford ULID (26).
 - Desktop auto-generates Master Key file; `DGW_MASTER_KEY` wins; Server Mode refuses Proxy Port without a key.
 - Data dir: Windows `%LOCALAPPDATA%\dgw\`, macOS Application Support, Linux XDG. Ports 18787/18788. Idempotent start.
@@ -228,7 +228,7 @@ git commit -m "chore: Apache-2.0 workspace skeleton"
 - [ ] **Step 1: Write the failing tests**
 
 ```rust
-use dgw_engine::placeholder::{parse_placeholder, Placeholder, PLACEHOLDER_REGEX};
+use veil_engine::placeholder::{parse_placeholder, Placeholder, PLACEHOLDER_REGEX};
 
 #[test]
 fn formats_and_parses_roundtrip() {
@@ -332,7 +332,7 @@ Add workspace dep: `http = "1"`. Engine depends on `http`.
 - [ ] **Step 1: Write the failing tests**
 
 ```rust
-use dgw_engine::creator::{creator_from_headers, ANONYMOUS, Creator};
+use veil_engine::creator::{creator_from_headers, ANONYMOUS, Creator};
 use http::{HeaderMap, HeaderValue};
 
 fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
@@ -382,7 +382,7 @@ fn display_is_hex_prefix_only() {
 }
 ```
 
-- [ ] **Step 2: Run tests â€” expect FAIL (module missing)**
+- [ ] **Step 2: Run tests â€?expect FAIL (module missing)**
 
 Run: `cargo test -p dgw-engine creator`
 
@@ -460,7 +460,7 @@ Fix the tests to compare against `anonymous_creator()` instead of a zero array. 
 assert_eq!(creator_from_headers(&HeaderMap::new()), anonymous_creator());
 ```
 
-- [ ] **Step 4: `cargo test -p dgw-engine creator` â€” PASS**
+- [ ] **Step 4: `cargo test -p dgw-engine creator` â€?PASS**
 
 - [ ] **Step 5: Commit** `feat: derive Creator from existing auth headers`
 
@@ -475,7 +475,7 @@ assert_eq!(creator_from_headers(&HeaderMap::new()), anonymous_creator());
 - [ ] **Step 1: Failing tests**
 
 ```rust
-use dgw_engine::rules::{Allowlist, Matcher, Rule, RuleSet};
+use veil_engine::rules::{Allowlist, Matcher, Rule, RuleSet};
 
 fn ruleset(rules: Vec<Rule>) -> RuleSet {
     RuleSet::new(rules, Allowlist::from(["127.0.0.1", "localhost", "0.0.0.0", "::1"]))
@@ -525,16 +525,16 @@ fn regex_timeout_counts_as_miss_for_that_rule_only() {
 }
 ```
 
-(If the timeout test is flaky on the evil regex, substitute a matcher that sleeps in tests via `Matcher::FailOpenTimeout` test hook â€” production still uses thread timeout. Prefer a deterministic test hook: `#[cfg(test)] Matcher::BlockUntilTimeout`.)
+(If the timeout test is flaky on the evil regex, substitute a matcher that sleeps in tests via `Matcher::FailOpenTimeout` test hook â€?production still uses thread timeout. Prefer a deterministic test hook: `#[cfg(test)] Matcher::BlockUntilTimeout`.)
 
-- [ ] **Step 2: Run â€” FAIL missing module**
+- [ ] **Step 2: Run â€?FAIL missing module**
 
 - [ ] **Step 3: Implement `Rule`, `RuleSet::find_hits(&self, text: &str) -> Vec<Hit>`**
 
 Required behavior:
 - Sort by priority descending, then stable id.
 - Search remaining gaps only (interval tree or sorted occupied spans).
-- Exact allowlist contains â†’ skip that exact substring occurrence.
+- Exact allowlist contains â†?skip that exact substring occurrence.
 - On regex timeout: skip that rule, continue others.
 - Never emit a hit whose text already contains `{{` from a previous replacement (pre-replace; spans are on original text).
 
@@ -554,7 +554,7 @@ Required behavior:
 - [ ] **Step 1: Failing tests**
 
 ```rust
-use dgw_engine::builtin::builtin_ruleset;
+use veil_engine::builtin::builtin_ruleset;
 use std::net::IpAddr;
 
 #[test]
@@ -612,15 +612,15 @@ fn garbage_is_not_an_ip() {
 }
 ```
 
-- [ ] **Step 2: Run â€” FAIL**
+- [ ] **Step 2: Run â€?FAIL**
 
 - [ ] **Step 3: Implement built-ins**
 
 Priority order (high first):
-1. PEM / AKIA / `sk-ant-` / `sk-` high-entropy / `Bearer eyJ` â†’ `AKSK` (200)
-2. Connection URI and ADO-style `Pwd=` strings â†’ `CONNSTR` (180)
-3. China ID (17 digits + check) â†’ `IDCARD` (150)
-4. China mobile â†’ `PHONE` (140)
+1. PEM / AKIA / `sk-ant-` / `sk-` high-entropy / `Bearer eyJ` â†?`AKSK` (200)
+2. Connection URI and ADO-style `Pwd=` strings â†?`CONNSTR` (180)
+3. China ID (17 digits + check) â†?`IDCARD` (150)
+4. China mobile â†?`PHONE` (140)
 5. IP tokenizer: split on whitespace and common delimiters, try `IpAddr::parse` on tokens and on bracketed v6; skip allowlist; type `IP` (120)
 6. Email regex, `enabled: false` (80)
 
@@ -641,10 +641,10 @@ IP matching **must parse**, not only regex dotted quads, so IPv6 works. Do not r
 - [ ] **Step 1: Failing tests**
 
 ```rust
-use dgw_engine::walk::{desensitize_json, restore_json};
-use dgw_engine::mapping::MemoryStore;
-use dgw_engine::creator::anonymous_creator;
-use dgw_engine::builtin::builtin_ruleset;
+use veil_engine::walk::{desensitize_json, restore_json};
+use veil_engine::mapping::MemoryStore;
+use veil_engine::creator::anonymous_creator;
+use veil_engine::builtin::builtin_ruleset;
 use serde_json::json;
 
 #[test]
@@ -700,9 +700,9 @@ fn same_creator_reuses_placeholder() {
 }
 ```
 
-`MemoryStore` is introduced here as an in-memory `MappingStore` in `mapping.rs` if Task 7 is not yet done â€” implement a minimal in-memory store in this task (see Step 3) so walk tests run.
+`MemoryStore` is introduced here as an in-memory `MappingStore` in `mapping.rs` if Task 7 is not yet done â€?implement a minimal in-memory store in this task (see Step 3) so walk tests run.
 
-- [ ] **Step 2: Run â€” FAIL**
+- [ ] **Step 2: Run â€?FAIL**
 
 - [ ] **Step 3: Implement walk + MemoryStore**
 
@@ -735,7 +735,7 @@ pub trait MappingStore {
 Walk algorithm:
 - `desensitize_json` recursively clones JSON. On `Value::String`, run `find_hits`, replace from right to left so offsets stay valid, `get_or_insert` each hit. Numbers/bools/null/object keys unchanged.
 - If any `get_or_insert` fails after a hit was found, return `Err(WalkError::MappingWrite)` (fail-closed A1).
-- `restore_json` finds `PLACEHOLDER_REGEX` in strings; `lookup` Hit â†’ substitute plaintext (do not scan again); Miss â†’ leave token; `Unavailable` â†’ `Err(WalkError::StoreUnavailable)`.
+- `restore_json` finds `PLACEHOLDER_REGEX` in strings; `lookup` Hit â†?substitute plaintext (do not scan again); Miss â†?leave token; `Unavailable` â†?`Err(WalkError::StoreUnavailable)`.
 
 - [ ] **Step 4: `cargo test -p dgw-engine walk` PASS**
 
@@ -752,10 +752,10 @@ Walk algorithm:
 - [ ] **Step 1: Failing tests**
 
 ```rust
-use dgw_engine::sliding::RestoreWindow;
-use dgw_engine::mapping::MemoryStore;
-use dgw_engine::placeholder::Placeholder;
-use dgw_engine::creator::anonymous_creator;
+use veil_engine::sliding::RestoreWindow;
+use veil_engine::mapping::MemoryStore;
+use veil_engine::placeholder::Placeholder;
+use veil_engine::creator::anonymous_creator;
 use ulid::Ulid;
 
 #[test]
@@ -793,15 +793,15 @@ fn unknown_valid_placeholder_emitted_unchanged() {
 
 #[test]
 fn store_unavailable_with_valid_token_is_error() {
-    let store = dgw_engine::mapping::DownStore;
+    let store = veil_engine::mapping::DownStore;
     let fake = Placeholder::new("PHONE", Ulid::new()).format();
     let mut w = RestoreWindow::new(&store, anonymous_creator());
     let err = w.push(&fake).unwrap_err();
-    assert!(matches!(err, dgw_engine::walk::WalkError::StoreUnavailable));
+    assert!(matches!(err, veil_engine::walk::WalkError::StoreUnavailable));
 }
 ```
 
-- [ ] **Step 2: Run â€” FAIL**
+- [ ] **Step 2: Run â€?FAIL**
 
 - [ ] **Step 3: Implement `RestoreWindow`**
 
@@ -918,9 +918,9 @@ Defaults: TTL 90 days, cap 100_000 per creator, LRU delete on overflow. `purge` 
 - [ ] **Step 1: Failing tests** (`crates/dgw/src/config.rs` cfg tests using tempfile)
 
 Cases:
-- `default_data_dir()` on Windows ends with `\\dgw` and uses local app data (mock via `DGW_DATA_DIR` in tests â€” tests must set `DGW_DATA_DIR` and assert override wins).
-- Missing key file + no env in `Mode::Desktop` â†’ writes 32 random bytes hex to `master.key` (mode 0600 when OS supports).
-- `Mode::Server` + missing key + missing env â†’ `Err(NoMasterKey)`.
+- `default_data_dir()` on Windows ends with `\\dgw` and uses local app data (mock via `DGW_DATA_DIR` in tests â€?tests must set `DGW_DATA_DIR` and assert override wins).
+- Missing key file + no env in `Mode::Desktop` â†?writes 32 random bytes hex to `master.key` (mode 0600 when OS supports).
+- `Mode::Server` + missing key + missing env â†?`Err(NoMasterKey)`.
 - `DGW_MASTER_KEY` overrides file.
 - Roundtrip `Config` serde toml: ports 18787/18788, three upstreams defaulting to `https://api.anthropic.com` and `https://api.openai.com`, ttl 90 days, body 32 MiB, bind `127.0.0.1`.
 
@@ -965,7 +965,7 @@ pub struct Config {
 - [ ] **Step 1: Failing tests**
 
 - `write_pid` / `read_pid` / `is_self_running` using a temp data dir.
-- `try_acquire` when pid live â†’ `AlreadyRunning { proxy, management }` success-equivalent for CLI start.
+- `try_acquire` when pid live â†?`AlreadyRunning { proxy, management }` success-equivalent for CLI start.
 - `stop` only kills recorded pid, not a random pid.
 - Logger formatter: a record with a field named `body` or a message containing `Authorization: Bearer` is still formatted, but helper `assert_no_secret(event, secret)` used in a test where we log `hit_types=["PHONE"]` and the plaintext is NOT in the output.
 
@@ -997,15 +997,15 @@ dgw start | stop | status | ui
 
 Use axum test + a mock upstream:
 
-1. `GET /v1/models` empty body â†’ forwarded, no mapping writes.
-2. JSON POST with no hits â†’ forwarded, body equal.
-3. JSON POST with phone â†’ upstream body contains `{{PHONE_` and not the digits; mapping row exists.
-4. Body 32 MiB+1 â†’ 413, mock upstream receives 0 requests.
+1. `GET /v1/models` empty body â†?forwarded, no mapping writes.
+2. JSON POST with no hits â†?forwarded, body equal.
+3. JSON POST with phone â†?upstream body contains `{{PHONE_` and not the digits; mapping row exists.
+4. Body 32 MiB+1 â†?413, mock upstream receives 0 requests.
 5. Outgoing request to mock has no `accept-encoding` gzip (identity).
-6. Multipart content-type â†’ 415, not forwarded.
-7. Unknown path `/secret` â†’ 404, not forwarded.
-8. Store forced unavailable + body with phone â†’ 502, not forwarded.
-9. Store unavailable + GET empty â†’ still forwarded.
+6. Multipart content-type â†?415, not forwarded.
+7. Unknown path `/secret` â†?404, not forwarded.
+8. Store forced unavailable + body with phone â†?502, not forwarded.
+9. Store unavailable + GET empty â†?still forwarded.
 
 - [ ] **Step 2: FAIL**
 
@@ -1018,12 +1018,12 @@ Path classification:
 | `/v1/messages` | Anthropic | `anthropic_upstream` |
 | `/v1/chat/completions` | OpenAI Completions | `openai_completions_upstream` |
 | `/v1/responses` | OpenAI Responses | `openai_responses_upstream` |
-| `/v1/models` | If request also has anthropic headers â†’ Anthropic, else OpenAI Completions | same |
+| `/v1/models` | If request also has anthropic headers â†?Anthropic, else OpenAI Completions | same |
 
-Simpler v1: `/v1/messages`* â†’ Anthropic; `/v1/chat/completions`* and `/v1/models`* and `/v1/embeddings`* â†’ OpenAI Completions; `/v1/responses`* â†’ OpenAI Responses.
+Simpler v1: `/v1/messages`* â†?Anthropic; `/v1/chat/completions`* and `/v1/models`* and `/v1/embeddings`* â†?OpenAI Completions; `/v1/responses`* â†?OpenAI Responses.
 
 Forward:
-- Copy method, path, query, all headers except `host` and `accept-encoding` (set identity when body will be scanned or response restored â€” i.e. all classified routes).
+- Copy method, path, query, all headers except `host` and `accept-encoding` (set identity when body will be scanned or response restored â€?i.e. all classified routes).
 - Rebuild Host from upstream URL.
 - Scan JSON if content-type json or body starts with `{`/`[`.
 - Non-JSON text: scan as one string.
@@ -1072,13 +1072,13 @@ If store is down and a valid placeholder appears in the stream: connection ends 
 
 - [ ] **Step 3: Implement**
 
-Parse SSE as events (split on `\n\n`). For each `data:` line, if JSON, walk string values with `RestoreWindow` **per JSON string field** (keep a map of field-path â†’ window, or one window per event string â€” v1: independently restore each complete JSON string value; if a JSON string itself is split across SSE events, keep a window keyed by the current text-delta path).
+Parse SSE as events (split on `\n\n`). For each `data:` line, if JSON, walk string values with `RestoreWindow` **per JSON string field** (keep a map of field-path â†?window, or one window per event string â€?v1: independently restore each complete JSON string value; if a JSON string itself is split across SSE events, keep a window keyed by the current text-delta path).
 
 Minimum viable that still honors "split across chunks":
 
-- Anthropic `delta.text` concatenates across events â†’ one `RestoreWindow` for that content block.
-- OpenAI `choices[].delta.content` â†’ one window per choice index.
-- OpenAI Responses `delta` text â†’ one window.
+- Anthropic `delta.text` concatenates across events â†?one `RestoreWindow` for that content block.
+- OpenAI `choices[].delta.content` â†?one window per choice index.
+- OpenAI Responses `delta` text â†?one window.
 
 Do not buffer the entire response. Emit SSE events as soon as the window produces bytes, re-encoded as JSON string fragments (codec round-trip). If the window cannot emit yet, hold the event.
 
@@ -1096,7 +1096,7 @@ Do not buffer the entire response. Emit SSE events as soon as the window produce
 
 - [ ] **Step 1: Failing tests**
 
-Auth: requests without admin token to mutating routes â†’ 401. GET `/api/status` on localhost may use token from header `x-dgw-admin-token` or cookie.
+Auth: requests without admin token to mutating routes â†?401. GET `/api/status` on localhost may use token from header `x-dgw-admin-token` or cookie.
 
 Never returns: mapping plaintext, master key, full admin token, full creator hashes (prefix8 only).
 
@@ -1145,18 +1145,18 @@ Live traffic: an in-memory ring buffer (512 events) filled by the proxy; SSE end
 
 `ui/src/api.ts` types must not contain `plaintext` or `master_key`.
 
-- [ ] **Step 2: Run `npm test` â€” FAIL until pages exist**
+- [ ] **Step 2: Run `npm test` â€?FAIL until pages exist**
 
 - [ ] **Step 3: Implement screens**
 
 Use a distinctive, dense ops-console look (not a generic purple dashboard). Stack: Vite, React 18, TypeScript. No analytics.
 
 Pages:
-1. Status â€” process, ports, three upstreams, counts, last error class.
-2. Rules â€” list, enable, priority, regex/dict editor, allowlist, dry-run pane.
-3. Upstream & Access â€” three URLs, bind, optional TLS paths, body limit, TTL, copyable proxy Base URL.
-4. Keys & Danger â€” master key status, rotate form, purge by creator prefix, reset admin token.
-5. Live Traffic â€” streaming table from `GET /api/traffic`.
+1. Status â€?process, ports, three upstreams, counts, last error class.
+2. Rules â€?list, enable, priority, regex/dict editor, allowlist, dry-run pane.
+3. Upstream & Access â€?three URLs, bind, optional TLS paths, body limit, TTL, copyable proxy Base URL.
+4. Keys & Danger â€?master key status, rotate form, purge by creator prefix, reset admin token.
+5. Live Traffic â€?streaming table from `GET /api/traffic`.
 
 Login: if token required, a single token field stored in memory/sessionStorage, sent as `x-dgw-admin-token`.
 
@@ -1175,13 +1175,13 @@ Login: if token required, a single token field stored in memory/sessionStorage, 
 
 Test the pure functions in `scripts/dgw.mjs` (export them):
 
-1. `resolveBinary({ env, dataDir, pathExists })` order: `DGW_BIN` â†’ `dataDir/bin/dgw(.exe)` â†’ `PATH`.
+1. `resolveBinary({ env, dataDir, pathExists })` order: `DGW_BIN` â†?`dataDir/bin/dgw(.exe)` â†?`PATH`.
 2. `pinnedVersion()` reads `plugin.json` field `dgw.version` (e.g. `"0.1.0"`) not `latest`.
 3. `downloadUrl(version, platform, arch)` is exactly `https://github.com/<org>/<repo>/releases/download/v{version}/dgw-{os}-{arch}[.exe]` and rejects hosts that are not `github.com`.
 4. `verifySha256(fileBytes, sumsText, assetName)` true/false; mismatch returns false.
 5. `chainBaseUrl({ current, proxyUrl })` : if current is empty or already proxyUrl, saved upstream unchanged; if current is some other http(s) URL, return `{ client: proxyUrl, saveUpstream: current }`.
 6. `restoreBaseUrl({ saved, proxyUrl, current })` restores saved when current === proxyUrl.
-7. `DGW_NO_DOWNLOAD=1` + missing binary â†’ `{ ok:false, reason: "no_binary" }` without fetching.
+7. `DGW_NO_DOWNLOAD=1` + missing binary â†?`{ ok:false, reason: "no_binary" }` without fetching.
 
 Mock `fetch` in tests. Do **not** hit the network.
 
@@ -1230,7 +1230,7 @@ Download:
 
 - [ ] **Step 1: Write smoke test** (ignored if no network): start `dgw` on ephemeral ports with a mock upstream, POST a Messages-shaped JSON containing `13800138000`, assert mock received placeholder, client received restored JSON.
 
-- [ ] **Step 2: Run `cargo test --workspace` â€” FAIL if smoke not wired; then implement any glue**
+- [ ] **Step 2: Run `cargo test --workspace` â€?FAIL if smoke not wired; then implement any glue**
 
 - [ ] **Step 3: CI workflow**
 
@@ -1260,7 +1260,7 @@ README: Desktop vs Server, official subscription vs custom API, chaining, fail-c
 | Anthropic Messages + SSE | 11, 12 |
 | OpenAI Chat Completions + Responses | 11, 12 |
 | Official subscription + custom API chaining | 9, 15 |
-| Outbound desensitize, plaintext never upstream | 4â€“6, 11 |
+| Outbound desensitize, plaintext never upstream | 4â€?, 11 |
 | Inbound restore, streaming sliding window | 7, 12 |
 | Custom rules UI + dry-run | 13, 14 |
 | Built-in pack including all parseable IPs | 5 |

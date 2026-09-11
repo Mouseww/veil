@@ -24,7 +24,7 @@ jobs:
           npm run build
       - name: cargo test
         env:
-          DGW_SKIP_UI_BUILD: "1"
+          VEIL_SKIP_UI_BUILD: "1"
         run: cargo test --workspace
       - name: plugin tests
-        run: node --test plugin/claude-code/scripts/dgw.test.mjs
+        run: node --test plugin/claude-code/scripts/veil.test.mjs

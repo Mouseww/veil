@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/dgw-engine", "crates/dgw-store", "crates/dgw"]
+members = ["crates/veil-engine", "crates/veil-store", "crates/veil"]
 
 [workspace.package]
 version = "0.1.0"

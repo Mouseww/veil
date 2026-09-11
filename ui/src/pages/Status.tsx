@@ -22,7 +22,7 @@ export default function StatusPage() {
         </li>
         <li>
           <strong>让 Claude Code 走网关</strong>
-          <p>在终端执行 <code>dgw setup</code>，或把下面这一行加到用户环境变量 / Claude 设置：</p>
+          <p>在终端执行 <code>veil setup</code>，或把下面这一行加到用户环境变量 / Claude 设置：</p>
           <pre className="copybox">ANTHROPIC_BASE_URL={base}</pre>
           <button
             type="button"

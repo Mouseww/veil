@@ -44,17 +44,17 @@ export type StatusBody = {
   last_error_class: string | null;
 };
 
-let adminToken = sessionStorage.getItem("dgw_admin") ?? "";
+let adminToken = sessionStorage.getItem("veil_admin") ?? "";
 
 export function setAdminToken(token: string) {
   adminToken = token;
-  if (token) sessionStorage.setItem("dgw_admin", token);
-  else sessionStorage.removeItem("dgw_admin");
+  if (token) sessionStorage.setItem("veil_admin", token);
+  else sessionStorage.removeItem("veil_admin");
 }
 
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (adminToken) headers.set("x-dgw-admin-token", adminToken);
+  if (adminToken) headers.set("x-veil-admin-token", adminToken);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   const res = await fetch(path, { ...init, headers });
   if (!res.ok) throw new Error(String(res.status));

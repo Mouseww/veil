@@ -2,7 +2,7 @@
   "hooks": {
     "SessionStart": [
       {
-        "command": "node scripts/dgw.mjs start",
+        "command": "node scripts/veil.mjs start",
         "once": true
       }
     ]

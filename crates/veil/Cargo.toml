@@ -1,0 +1,31 @@
+[package]
+name = "veil"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Veil — keep secrets on your machine. The model never sees them."
+
+[dependencies]
+veil-engine = { path = "../veil-engine" }
+veil-store = { path = "../veil-store" }
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+thiserror.workspace = true
+hex.workspace = true
+rand.workspace = true
+sha2.workspace = true
+base64 = "0.22"
+tokio.workspace = true
+axum.workspace = true
+reqwest.workspace = true
+http-body-util.workspace = true
+bytes.workspace = true
+futures-util.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+http.workspace = true
+rust-embed.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
