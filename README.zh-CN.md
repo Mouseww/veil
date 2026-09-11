@@ -1,48 +1,66 @@
 # Veil
 
-[English](README.md)
+[English](README.md) · [下载](https://github.com/Mouseww/veil/releases/latest) · Apache-2.0 · 无遥测
 
-**你把数据库密码贴进 Claude。** 它离开了你的电脑，进了厂商日志。模型没学到什么，你却多了一处泄露。
+**你的编程助手其实已经见过生产环境密码了。**
 
-Veil 是跑在本机的小代理。把 Claude Code（或任何 OpenAI 兼容客户端）指过来。手机号、连接串、密钥、证件号在出网前被换成占位符；模型的回复回来后再变回原文。**模型从头到尾没见过明文。**
+排障时贴一段连接串。写正则时贴客户手机号。看堆栈时把 `.env` 整段丢进去。这些字离开电脑，进了模型厂商的日志，**撤不回来**。
+
+Veil 跑在本机，夹在 IDE 和模型之间。出网前把机密换成占位符，模型用占位符回答，回来再还原成原文。你还是那样聊。**模型从头到尾没见过明文。**
 
 ```
-you  -->  Veil (localhost)  -->  Anthropic / OpenAI / LiteLLM
-        redact before send         restore on the way back
+Claude / Codex / Trae / PI / Hermes / Grok
+        |
+        v
+   Veil（这台电脑）      出网脱敏 --> 回程还原
+        |
+        v
+   Anthropic / OpenAI / LiteLLM / 你们公司的网关
 ```
 
-不用注册。没有遥测。官方 Claude 订阅照常用，登录态不会被改掉。
+不用注册。不用再给 Veil 一份 Key。官方 Claude 登录照旧。第三方网关照旧。鉴权头原样转发。
 
-## 30 秒上手
-
-**Windows**
+## 安装（Windows，大约 30 秒）
 
 ```powershell
 irm https://raw.githubusercontent.com/Mouseww/veil/main/scripts/install.ps1 | iex
 ```
 
-再开一个终端：
+浏览器弹出管理页后，**另开一个终端**：
 
 ```bat
 veil setup
 ```
 
-重启 Claude Code。该怎么聊怎么聊。
+勾选你真正在用的应用，重启它们，该怎么聊怎么聊。
 
-或者从 [Releases](https://github.com/Mouseww/veil/releases) 下载 `veil-windows-x64.exe`，双击，再执行 `veil setup`。
+也可以从 [Releases](https://github.com/Mouseww/veil/releases/latest) 下载 `veil-windows-x64.exe` 双击。
 
-**从源码**
+macOS / Linux：下载对应二进制，`./veil` 然后 `./veil setup`。
 
-```bash
-cargo run -p veil
-veil setup
-```
+代理 `http://127.0.0.1:18787` · 管理页 `http://127.0.0.1:18788`
 
-代理：`http://127.0.0.1:18787`  ·  管理页：`http://127.0.0.1:18788`
+## 什么时候真的用得上
 
-## 支持哪些应用
+**对着真实数据排障。** 生产库挂了，助手需要 DSN、Redis、JWT。让它看见结构，不必看见秘密。
 
-`veil setup` 会列出本机已安装的，让你勾选；也可以用 `--clients`。
+**提示词里有客户资料。** 日志里的手机号、身份证、邮箱。你要的是摘要，不是一次泄露事故。
+
+**内网环境。** 工单里全是 `10.x`、VPN、后台地址。公网 IP 也会挡；本机回环放行。
+
+**`.env` 和证书。** 你问「为啥发版失败」，私钥就在报错上面三行。
+
+**非官方 / 公司模型网关。** LiteLLM、自建反代、转售 API。你也不想让*那台*服务器存客户手机号。`--upstream` 指过去即可。
+
+**官方订阅。** 登录留在这台电脑上。Veil 只是本地这一跳，不会动 OAuth。
+
+**同时开好几个编程助手。** 这边 Claude Code，那边 Codex，再开 Trae。`veil setup` 分别写配置。一个代理，多个应用。
+
+**演示和教学。** 分享会现场写代码，别把个人 Token 打在投影仪上。
+
+**默认失败关闭。** 无法证明这段请求干净，就**不转发**。502 总比泄密好。
+
+## `veil setup` 能接入的应用
 
 | id | 应用 |
 |---|---|
@@ -51,7 +69,7 @@ veil setup
 | `pi` | PI Agent |
 | `codebuddy` | CodeBuddy（Workbuddy） |
 | `grok` | Grok Builder |
-| `hermes` | Hermes（Herness） |
+| `hermes` | Hermes |
 | `trae` | Trae |
 
 ```bat
@@ -59,47 +77,38 @@ veil setup --clients claude,codex,trae
 veil setup --clients all --upstream https://你的网关
 ```
 
-改完请重启对应应用。Key 仍填在应用里，Veil 只透传。
+直接 `veil setup` 会列出这台机器上已安装的。改完请重启对应应用。
 
-## 官方订阅 vs 非官方 / 自定义 API
+## 官方 API 还是自己的网关
 
-一键安装脚本**只负责把 Veil 跑起来**。流量接下来打到哪家，叫上游（upstream），需要单独说清楚。
+| 你怎么用模型 | 怎么配 |
+|---|---|
+| 官方 Anthropic / Claude 登录 | 只跑 `veil setup` |
+| 已经有 `ANTHROPIC_BASE_URL` | `veil setup` 会把它留下当上游 |
+| 第三方，从来没设过 Base URL | `veil setup --upstream https://…` |
+| OpenAI 兼容客户端 | Base URL 填 `http://127.0.0.1:18787`（OpenAI 路径带 `/v1`） |
 
-**官方 Anthropic 订阅**（Claude Code 里登录 Pro / Max / Team）：执行 `veil setup` 即可。登录态不动。Veil 默认转发到 `https://api.anthropic.com`。
+API Key / Token **永远用上游那份**，填在 IDE 里。Veil 透传 `Authorization`、`x-api-key`、`api-key`，不会再要你一份。
 
-**第三方 / 公司网关**（LiteLLM、自建反代、已经设过 `ANTHROPIC_BASE_URL`）：
-
-1. 先启动 Veil（双击或安装脚本）。
-2. 如果你本来就有自定义 Base URL，`veil setup` 会**把它留下当上游**，再把客户端改成本机。
-3. 如果从来没设过，请显式指定：
-
-```bat
-veil setup --upstream https://your-gateway.example
-```
-
-也可以打开管理页的 **「上游」** 标签粘贴（`http://127.0.0.1:18788`）。
-
-**OpenAI 兼容客户端：** 把客户端 Base URL 设成 `http://127.0.0.1:18787`，再在同一页填 Veil 的 OpenAI 上游。
-
-**鉴权透传。** API Key / Token 用**上游那份**，填在 Claude Code 里（或 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`）。Veil 会原样转发 `Authorization`、`x-api-key`、`api-key`，不会再要你一份 Key。
+需要微调时打开管理页 **「上游」**。
 
 ## 会挡什么
 
-内置：手机号、身份证、可解析 IP（含公网，本机回环在白名单）、PEM、`sk-` Token、数据库连接串。管理页可加自己的正则或词表，先试跑再保存。
+内置：手机号、身份证、可解析 IP（含公网；`127.0.0.1` / `localhost` 白名单）、PEM、`sk-` Token、数据库连接串。
 
-如果 Veil 没法证明这段内容是干净的，**就不会转发**。
+管理页可加正则或词表，先试跑再保存。占位符形如 `{{PHONE_01ARZ3NDEKTSV4RRFFQ69G5FAV}}`，只对同一把 API Key（Creator）还原。
 
 ## 命令
 
 | | |
 |---|---|
 | `veil` | 启动并打开管理页 |
-| `veil setup` | 选择要接入的应用并写入配置 |
+| `veil setup` | 选择应用并写入 Base URL |
 | `veil status` / `veil stop` | 查看 / 停止 |
 
-可选环境变量：`VEIL_DATA_DIR`、`VEIL_MASTER_KEY`、`VEIL_BIND`、`VEIL_MODE=server`。旧的 `DGW_*` 仍然有效。
+进阶：`VEIL_DATA_DIR`、`VEIL_MASTER_KEY`、`VEIL_BIND`、`VEIL_MODE=server`。旧的 `DGW_*` 仍然有效。
 
 ## 许可证
 
-Apache-2.0。没有任何出网遥测。
+Apache-2.0。没有任何出网遥测。映射表落盘加密。
 
