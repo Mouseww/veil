@@ -125,11 +125,8 @@ async fn json_post_without_hits_is_unchanged() {
     assert_eq!(status, StatusCode::OK);
     let hits = cap.hits.lock().unwrap();
     let got: Value = serde_json::from_slice(&hits[0].body).unwrap();
-    assert!(got["system"].as_str().unwrap().contains("VEIL_ALIAS_HINT"));
-    assert!(got["messages"][0]["content"]
-        .as_str()
-        .unwrap()
-        .contains("hello"));
+    let want: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(got, want);
 }
 
 #[tokio::test]

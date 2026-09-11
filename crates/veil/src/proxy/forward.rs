@@ -43,11 +43,13 @@ impl AppState {
             rules: Arc::new(builtin_ruleset()),
             client: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
+                .tcp_nodelay(true)
+                .pool_max_idle_per_host(16)
                 .build()
                 .expect("reqwest client"),
             traffic: TrafficLog::default(),
             default_family: None,
-            alias_hint: true,
+            alias_hint: false,
         }
     }
 

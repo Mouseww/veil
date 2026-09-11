@@ -127,11 +127,17 @@ fn apply_delta_window<S: MappingStore + ?Sized>(
     window: &mut RestoreWindow<'_, S>,
     value: &mut Value,
 ) -> Result<bool, WalkError> {
-    for pointer in ["/delta/text", "/choices/0/delta/content", "/delta"] {
-        if pointer == "/delta" {
-            if value.pointer("/delta/text").is_some() {
-                continue;
-            }
+    for pointer in [
+        "/delta/text",
+        "/delta/partial_json",
+        "/choices/0/delta/content",
+        "/delta",
+    ] {
+        if pointer == "/delta"
+            && (value.pointer("/delta/text").is_some()
+                || value.pointer("/delta/partial_json").is_some())
+        {
+            continue;
         }
         if let Some(Value::String(text)) = value.pointer_mut(pointer) {
             let restored = window.push(text)?;

@@ -11,6 +11,13 @@ pub fn init(data_dir: &Path) {
 
 /// Log a proxy event (no secrets). Also prints to stderr when running in foreground.
 pub fn proxy(fields: &[(&str, &str)]) {
+    let on = crate::env::var("DEBUG")
+        .ok()
+        .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if !on {
+        return;
+    }
     let line = format_event(fields);
     eprintln!("[veil] {line}");
     if let Ok(g) = DATA_DIR.lock() {

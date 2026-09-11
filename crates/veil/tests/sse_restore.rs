@@ -69,6 +69,30 @@ fn anthropic_placeholder_split_across_events() {
 }
 
 #[test]
+fn tool_use_partial_json_restores_phone() {
+    let store = MemoryStore::new();
+    let token = phone_token(&store);
+    let mid = token.len() / 2;
+    let e1 = json!({
+        "type": "content_block_delta",
+        "delta": {"type": "input_json_delta", "partial_json": &token[..mid]}
+    });
+    let e2 = json!({
+        "type": "content_block_delta",
+        "delta": {"type": "input_json_delta", "partial_json": &token[mid..]}
+    });
+    let mut r = SseRestorer::new(&store, anonymous_creator());
+    let s1 = format!("event: content_block_delta\ndata: {}\n\n", e1);
+    let s2 = format!("event: content_block_delta\ndata: {}\n\n", e2);
+    let mut out = r.push(&s1).unwrap();
+    out.push_str(&r.push(&s2).unwrap());
+    out.push_str(&r.flush().unwrap());
+    let joined = collect_text(&out, "/delta/partial_json");
+    assert!(joined.contains("13800138000"), "{joined}");
+    assert!(!joined.contains("{{PHONE_"), "{joined}");
+}
+
+#[test]
 fn openai_chat_split_across_events() {
     let store = MemoryStore::new();
     let token = store
