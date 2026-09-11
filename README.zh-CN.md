@@ -32,35 +32,40 @@ Veil 挂在这台电脑的门口。机密先换成化名再出门；模型的回
 
 ---
 
-## 记住一个地址
-
-| 你填到工具里的 | 干什么 |
-|---|---|
-| `http://127.0.0.1:18787` | Anthropic 协议（Claude Code 这类） |
-| `http://127.0.0.1:18787/v1` | OpenAI 兼容协议（Cursor、Codex、大多数中转） |
-| `http://127.0.0.1:18788` | 管理页，给自己看的 |
-
-不是绑死某几个 Agent。只要工具能改 **Base URL**（或环境变量），就能从这道帘子走。自己写的脚本、公司的 LiteLLM、没听说过的 IDE，同一套。
-
----
-
-## 三步用上
-
-1. 下载 [`veil-windows-x64.exe`](https://github.com/Mouseww/veil/releases/latest)，双击。浏览器应打开管理页。
-2. 打开你的 AI 工具，把 Base URL 改成上面那个地址。Key 还用原来的。
-3. 发一句 `联系 13800138000`。管理页「流量」里有请求，模型那边不该看到真号。
-
-GitHub 下不动时：
+## 一行装上，就能用
 
 ```powershell
 irm https://raw.githubusercontent.com/Mouseww/veil/main/scripts/install.ps1 | iex
 ```
 
-部分软件可以偷懒：`veil setup` 会改它能认出的配置。认不出的，手动改 Base URL，效果一样。
+浏览器弹出 http://127.0.0.1:18788 就是装好了。再在新终端跑一句：
 
-中转 / 公司网关：管理页「上游」填中转的根地址，工具里的 Key 用中转给你的那把。
+```bat
+veil setup
+```
 
-更细的接法（Cursor、Python、环境变量）写在 [使用说明](docs/使用.md)。
+勾选你正在用的软件，重启它们，照常聊天。官方 Claude 登录不用另填 Key。
+
+也可以去 [Releases](https://github.com/Mouseww/veil/releases/latest) 下载 `veil-windows-x64.exe` 双击，效果一样。
+
+---
+
+## 名单里没有的，自己指过来
+
+Veil 不绑死某几个 Agent。只要工具能改 **Base URL**（或环境变量），就能走这道帘子。
+
+把工具里的 API 地址改成下面其中一个，**Key 还用原来的**：
+
+| 工具讲的协议 | 填这个 |
+|---|---|
+| Anthropic（Claude Code 这类） | `http://127.0.0.1:18787` |
+| OpenAI 兼容（Cursor、Codex、大多数中转） | `http://127.0.0.1:18787/v1` |
+
+管理页给自己看：http://127.0.0.1:18788
+
+走公司中转 / LiteLLM 时：管理页「上游」填中转根地址，工具里的 Key 用中转那把。
+
+Cursor、Python、环境变量等细接法见 [使用说明](docs/使用.md)。
 
 ---
 
