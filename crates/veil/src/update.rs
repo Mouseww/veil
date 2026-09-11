@@ -34,10 +34,43 @@ pub struct UpdateInfo {
     pub url: String,
 }
 
+fn mirror_prefixes() -> Vec<String> {
+    let mut v = vec![
+        "https://ghfast.top/".into(),
+        "https://ghproxy.net/".into(),
+        "https://gh-proxy.com/".into(),
+    ];
+    if let Ok(extra) = crate::env::var("GITHUB_MIRROR") {
+        let extra = extra.trim();
+        if !extra.is_empty() {
+            v.insert(
+                0,
+                if extra.ends_with('/') {
+                    extra.into()
+                } else {
+                    format!("{extra}/")
+                },
+            );
+        }
+    }
+    v
+}
+
+pub fn download_candidates(browser_url: &str, api_url: &str) -> Vec<String> {
+    let mut out = vec![browser_url.to_string()];
+    for p in mirror_prefixes() {
+        out.push(format!("{p}{browser_url}"));
+    }
+    if !api_url.is_empty() {
+        out.push(api_url.to_string());
+    }
+    out
+}
+
 pub fn parse_latest_json(
     body: &str,
     asset: &str,
-) -> Result<(String, String, Option<String>), Error> {
+) -> Result<(String, String, String, Option<String>), Error> {
     let v: serde_json::Value = serde_json::from_str(body)?;
     let tag = v
         .get("tag_name")
@@ -52,18 +85,25 @@ pub fn parse_latest_json(
         .and_then(|x| x.as_array())
         .cloned()
         .unwrap_or_default();
-    let url = assets
+    let hit = assets
         .iter()
-        .find_map(|a| {
-            if a.get("name").and_then(|n| n.as_str()) == Some(asset) {
-                a.get("browser_download_url")
-                    .and_then(|u| u.as_str())
-                    .map(str::to_string)
-            } else {
-                None
-            }
-        })
-        .ok_or_else(|| Error::Setup(format!("release has no {asset}")))?;
+        .find(|a| a.get("name").and_then(|n| n.as_str()) == Some(asset));
+    let Some(hit) = hit else {
+        return Err(Error::Setup(format!("release has no {asset}")));
+    };
+    let url = hit
+        .get("browser_download_url")
+        .and_then(|u| u.as_str())
+        .unwrap_or("")
+        .to_string();
+    let api_url = hit
+        .get("url")
+        .and_then(|u| u.as_str())
+        .unwrap_or("")
+        .to_string();
+    if url.is_empty() && api_url.is_empty() {
+        return Err(Error::Setup(format!("release has no {asset} url")));
+    }
     let sums = assets.iter().find_map(|a| {
         if a.get("name").and_then(|n| n.as_str()) == Some("SHA256SUMS") {
             a.get("browser_download_url")
@@ -73,7 +113,7 @@ pub fn parse_latest_json(
             None
         }
     });
-    Ok((tag.to_string(), url, sums))
+    Ok((tag.to_string(), url, api_url, sums))
 }
 
 pub fn version_newer(latest: &str, current: &str) -> bool {
@@ -109,8 +149,30 @@ fn client() -> reqwest::Client {
     reqwest::Client::builder()
         .user_agent(format!("veil/{}", current_version()))
         .redirect(reqwest::redirect::Policy::limited(8))
+        .timeout(std::time::Duration::from_secs(90))
+        .connect_timeout(std::time::Duration::from_secs(20))
         .build()
         .expect("reqwest")
+}
+
+async fn get_bytes(cli: &reqwest::Client, url: &str) -> Result<bytes::Bytes, String> {
+    let mut req = cli.get(url);
+    if url.contains("api.github.com") && url.contains("/releases/assets/") {
+        req = req.header(reqwest::header::ACCEPT, "application/octet-stream");
+    }
+    let resp = req.send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("{url} -> {}", resp.status()));
+    }
+    resp.bytes().await.map_err(|e| e.to_string())
+}
+
+async fn get_text(cli: &reqwest::Client, url: &str) -> Result<String, String> {
+    let resp = cli.get(url).send().await.map_err(|e| e.to_string())?;
+    if !resp.status().is_success() {
+        return Err(format!("{url} -> {}", resp.status()));
+    }
+    resp.text().await.map_err(|e| e.to_string())
 }
 
 pub async fn check() -> Result<UpdateInfo, Error> {
@@ -126,13 +188,18 @@ pub async fn check() -> Result<UpdateInfo, Error> {
         .text()
         .await
         .map_err(|e| Error::Setup(e.to_string()))?;
-    let (latest, asset_url, _) = parse_latest_json(&body, asset)?;
+    let (latest, asset_url, api_url, _) = parse_latest_json(&body, asset)?;
+    let url = if asset_url.is_empty() {
+        api_url
+    } else {
+        asset_url
+    };
     Ok(UpdateInfo {
         current: current_version().into(),
         latest: latest.clone(),
         newer: version_newer(&latest, current_version()),
         asset: asset.into(),
-        url: asset_url,
+        url,
     })
 }
 
@@ -142,26 +209,47 @@ pub async fn download_and_stage(dest: &Path) -> Result<UpdateInfo, Error> {
         return Ok(info);
     }
     let cli = client();
-    let bytes = cli
-        .get(&info.url)
-        .send()
-        .await
-        .map_err(|e| Error::Setup(e.to_string()))?
-        .error_for_status()
-        .map_err(|e| Error::Setup(e.to_string()))?
-        .bytes()
-        .await
-        .map_err(|e| Error::Setup(e.to_string()))?;
-    let sums_url = format!(
-        "https://github.com/{REPO}/releases/download/v{}/SHA256SUMS",
-        info.latest
+    let api_body = {
+        let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
+        get_text(&cli, &url).await.unwrap_or_default()
+    };
+    let api_asset = parse_latest_json(&api_body, &info.asset)
+        .ok()
+        .map(|(_, _, api, _)| api)
+        .unwrap_or_default();
+    let mut last_err = String::from("download failed");
+    let mut bytes: Option<bytes::Bytes> = None;
+    for cand in download_candidates(&info.url, &api_asset) {
+        eprintln!("trying {cand}");
+        match get_bytes(&cli, &cand).await {
+            Ok(b) if b.len() > 1024 => {
+                bytes = Some(b);
+                break;
+            }
+            Ok(_) => last_err = format!("{cand}: file too small"),
+            Err(e) => last_err = e,
+        }
+    }
+    let Some(bytes) = bytes else {
+        return Err(Error::Setup(format!(
+            "{last_err}. GitHub file CDN is often blocked. Retry with VEIL_GITHUB_MIRROR=https://ghfast.top/  or: gh release download v{} --repo {REPO} -p {}",
+            info.latest, info.asset
+        )));
+    };
+    let sums_candidates = download_candidates(
+        &format!(
+            "https://github.com/{REPO}/releases/download/v{}/SHA256SUMS",
+            info.latest
+        ),
+        "",
     );
-    if let Ok(resp) = cli.get(&sums_url).send().await {
-        if resp.status().is_success() {
-            if let Ok(text) = resp.text().await {
-                if !text.is_empty() && !verify_sha256(&bytes, &text, &info.asset) {
+    for cand in sums_candidates {
+        if let Ok(text) = get_text(&cli, &cand).await {
+            if !text.is_empty() && text.contains(&info.asset) {
+                if !verify_sha256(&bytes, &text, &info.asset) {
                     return Err(Error::Setup("SHA-256 mismatch".into()));
                 }
+                break;
             }
         }
     }
@@ -216,10 +304,11 @@ mod tests {
 
     #[test]
     fn parses_github_release_json() {
-        let body = r#"{"tag_name":"v0.3.0","assets":[{"name":"veil-linux-x64","browser_download_url":"https://github.com/Mouseww/veil/releases/download/v0.3.0/veil-linux-x64"},{"name":"SHA256SUMS","browser_download_url":"https://github.com/Mouseww/veil/releases/download/v0.3.0/SHA256SUMS"}]}"#;
-        let (tag, url, sums) = parse_latest_json(body, "veil-linux-x64").unwrap();
+        let body = r#"{"tag_name":"v0.3.0","assets":[{"name":"veil-linux-x64","url":"https://api.github.com/repos/Mouseww/veil/releases/assets/1","browser_download_url":"https://github.com/Mouseww/veil/releases/download/v0.3.0/veil-linux-x64"},{"name":"SHA256SUMS","browser_download_url":"https://github.com/Mouseww/veil/releases/download/v0.3.0/SHA256SUMS"}]}"#;
+        let (tag, url, api, sums) = parse_latest_json(body, "veil-linux-x64").unwrap();
         assert_eq!(tag, "0.3.0");
         assert!(url.contains("veil-linux-x64"));
+        assert!(api.contains("/releases/assets/"));
         assert!(sums.unwrap().contains("SHA256SUMS"));
     }
 

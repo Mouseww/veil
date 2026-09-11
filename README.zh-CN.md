@@ -50,6 +50,12 @@ veil update
 
 或在管理页点 **检查更新** → **立即更新**。会从 GitHub 拉最新包、校验 SHA-256、替换自身并重启。
 
+如果 `veil update` 提示连不上 `github.com/releases/download`（国内常见），程序会改走 GitHub API 和镜像；也可设置 `VEIL_GITHUB_MIRROR=https://ghfast.top/`。或：
+
+```bat
+gh release download v0.3.3 --repo Mouseww/veil -p veil-windows-x64.exe
+```
+
 还在用 **v0.1**（`dgw.exe`）：再跑一遍安装脚本，装上 `veil.exe`。以后用 `veil update`。
 
 ```powershell

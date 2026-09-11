@@ -1,6 +1,6 @@
 {
   "name": "veil",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "description": "Veil: keep secrets on your machine. The model never sees them.",
-  "veil": { "version": "0.3.1", "repo": "Mouseww/veil" }
+  "veil": { "version": "0.3.3", "repo": "Mouseww/veil" }
 }

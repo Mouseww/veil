@@ -50,6 +50,12 @@ veil update
 
 Or in the console: **Check for updates** → **Update now**. Veil downloads the latest GitHub release, verifies SHA-256, replaces itself, and restarts.
 
+If `veil update` cannot reach `github.com/releases/download` (common in CN), it will try GitHub API + mirrors, or set `VEIL_GITHUB_MIRROR=https://ghfast.top/`. You can also:
+
+```bat
+gh release download v0.3.3 --repo Mouseww/veil -p veil-windows-x64.exe
+```
+
 From **v0.1** (`dgw.exe`): run the install command above again. It installs `veil.exe` alongside. Then use `veil update` next time.
 
 ```powershell
