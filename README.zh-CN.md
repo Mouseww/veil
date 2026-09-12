@@ -102,3 +102,10 @@ Cursor、Python、环境变量等细接法见 [使用说明](docs/使用.md)。
 <img width="1152" height="632" alt="上游" src="https://github.com/user-attachments/assets/9ef630e2-8c44-462d-af70-22a39734eaa8" />
 
 <img width="1399" height="648" alt="密钥" src="https://github.com/user-attachments/assets/004ef3a7-b335-49b3-889a-d008098da82a" />
+
+---
+
+Thanks to everyone on LinuxDo for their support!
+
+---
+
