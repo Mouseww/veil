@@ -121,5 +121,13 @@ Higher priority wins on overlap. If a body cannot be proven clean, Veil returns 
 
 ---
 
+## UI
+<img width="1437" height="723" alt="image" src="https://github.com/user-attachments/assets/8289fb9c-9857-4c49-b973-a2ab3f50a6aa" />
+<img width="1408" height="715" alt="image" src="https://github.com/user-attachments/assets/6c35af52-f974-4115-bd7c-3a2642874670" />
+<img width="1435" height="732" alt="image" src="https://github.com/user-attachments/assets/3c2bed66-0ee2-4f7a-afea-3df661006938" />
+
+
+
+
 Apache-2.0. Encrypted mapping table. No telemetry.
 
