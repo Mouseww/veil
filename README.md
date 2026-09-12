@@ -96,4 +96,10 @@ Double-click to start. `veil stop` to quit. The mapping table is encrypted on di
 
 <img width="1435" height="732" alt="Upstream" src="https://github.com/user-attachments/assets/3c2bed66-0ee2-4f7a-afea-3df661006938" />
 
+---
+
+Thanks to everyone on LinuxDo for their support!
+
+---
+
 Apache-2.0.
