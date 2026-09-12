@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import StatusPage from "./pages/Status";
+import DashboardPage from "./pages/Dashboard";
 import RulesPage from "./pages/Rules";
 import UpstreamPage from "./pages/Upstream";
 import KeysPage from "./pages/Keys";
@@ -30,7 +30,7 @@ export default function App() {
     api.status().then((s) => { setRunning(true); setVer(s.version ?? ""); }).catch(() => setRunning(false));
   }, []);
   const tabs: { id: Tab; label: string; icon: typeof Ico.dash }[] = [
-    { id: "status", label: t.tabStart, icon: Ico.dash },
+    { id: "status", label: t.tabDash, icon: Ico.dash },
     { id: "rules", label: t.tabRules, icon: Ico.scan },
     { id: "upstream", label: t.tabUpstream, icon: Ico.net },
     { id: "keys", label: t.tabKeys, icon: Ico.key },
@@ -60,7 +60,7 @@ export default function App() {
           </div>
         </div>
         <main className="workspace">
-          {tab === "status" && <StatusPage />}
+          {tab === "status" && <DashboardPage />}
           {tab === "rules" && <RulesPage />}
           {tab === "upstream" && <UpstreamPage />}
           {tab === "keys" && <KeysPage />}

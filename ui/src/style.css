@@ -152,6 +152,12 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .rule-body { padding: 0 14px 14px; border-top: 1px solid var(--border); }
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .iconbtn { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; cursor: pointer; color: inherit; }
+.ptabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 16px; }
+.ptabs button {
+  background: var(--card); color: var(--foreground); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer;
+}
+.ptabs button.on { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
 .lang { display: flex; gap: 4px; }
 .lang button { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; cursor: pointer; color: inherit; font: inherit; }
 .lang button.active { border-color: var(--primary); color: var(--primary); font-weight: 600; }
