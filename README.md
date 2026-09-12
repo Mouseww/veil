@@ -1,6 +1,6 @@
 # Veil
 
-**Leave under an alias. Come home under your real name.**
+**Hide passwords, tokens, and other secrets when you use large models. Works with the tools already on your machine — one-click install.**
 
 You drop `.env` into the chat so it can fix a bug. It does — and the password is already sitting on someone else's server.
 
