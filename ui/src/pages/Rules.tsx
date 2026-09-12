@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type DryHit, type RuleView } from "../api";
-import { DryRun } from "../DryRun";
+import { api, type RuleView } from "../api";
 import { useT } from "../i18n";
 
 export default function RulesPage() {
@@ -8,8 +7,6 @@ export default function RulesPage() {
   const [rules, setRules] = useState<RuleView[]>([]);
   const [open, setOpen] = useState<string | null>(null);
   const [allow, setAllow] = useState("");
-  const [sample, setSample] = useState("call 13800138000");
-  const [hits, setHits] = useState<DryHit[]>([]);
   const [flash, setFlash] = useState("");
   const [nid, setNid] = useState("custom1");
   const [ntp, setNtp] = useState("CUSTOM");
@@ -79,10 +76,6 @@ export default function RulesPage() {
       <p className="help">{t.helpRules}</p>
       <textarea value={allow} onChange={(e) => setAllow(e.target.value)} rows={4} />
       <button className="btn" type="button" onClick={async () => { try { await api.putAllowlist(allow.split(/\s+/).filter(Boolean)); setFlash(t.saved); } catch { setFlash(t.failed); } }}>{t.saveAllow}</button>
-      <h2>{t.dryRun}</h2>
-      <textarea value={sample} onChange={(e) => setSample(e.target.value)} rows={3} />
-      <button className="btn" type="button" onClick={async () => setHits(await api.dryRun(sample))}>{t.run}</button>
-      <DryRun sample={sample} hits={hits} />
     </section>
   );
 }

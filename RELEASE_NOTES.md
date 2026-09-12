@@ -1,18 +1,17 @@
-Veil 0.2.0 — secrets stay on your machine. The model never sees them.
+Veil 0.3.1 — one-click update, bilingual console, live traffic.
 
-## Highlights
+## Update
 
-- Renamed to **Veil** (`veil` CLI, `VEIL_*` env). Legacy `dgw` / `DGW_*` still works.
-- `veil setup` can point Claude Code, Codex, Trae, PI Agent, Hermes, CodeBuddy, and Grok Builder at the local proxy.
-- Auth is pass-through: use the upstream API key.
-- Custom gateway: `veil setup --upstream https://your-api.example`
+```
+veil update
+```
 
-## Downloads
+Or in the console: Check for updates → Update now.
 
-- `veil-windows-x64.exe` — Windows
-- `veil-macos-arm64` / `veil-macos-x64`
-- `veil-linux-x64` / `veil-linux-arm64`
+From v0.1 (dgw.exe), re-run the install script once.
 
-Windows: double-click the exe, then run `veil setup` in a new terminal.
+## Also
 
-中文说明：README.zh-CN.md
+- EN / 中文 console
+- Live traffic log
+- Working rules / upstream / keys save

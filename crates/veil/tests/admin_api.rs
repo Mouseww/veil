@@ -61,7 +61,7 @@ async fn mutating_without_token_is_401() {
 }
 
 #[tokio::test]
-async fn put_rules_with_token_and_dry_run() {
+async fn put_rules_with_token() {
     let dir = tempfile::tempdir().unwrap();
     let (cfg, token) = loaded(dir.path());
     let port = bind_admin(dir.path().to_path_buf(), cfg, true).await;
@@ -82,18 +82,6 @@ async fn put_rules_with_token_and_dry_run() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::NO_CONTENT);
-
-    let dry = client
-        .post(format!("http://127.0.0.1:{port}/api/rules/dry-run"))
-        .header("x-veil-admin-token", &token)
-        .json(&serde_json::json!({"text": "call 13800138000"}))
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(dry.status(), StatusCode::OK);
-    let hits: serde_json::Value = dry.json().await.unwrap();
-    assert_eq!(hits[0]["type_prefix"], "PHONE");
-    assert_eq!(hits[0]["matched"], "13800138000");
 }
 
 #[tokio::test]

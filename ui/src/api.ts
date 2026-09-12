@@ -9,13 +9,6 @@ export type RuleView = {
   words?: string[] | null;
 };
 
-export type DryHit = {
-  type_prefix: string;
-  start: number;
-  end: number;
-  matched: string;
-};
-
 export type TrafficEvent = {
   ts: number;
   method: string;
@@ -77,7 +70,6 @@ export const api = {
   status: () => req<StatusBody>("/api/status"),
   rules: () => req<RuleView[]>("/api/rules"),
   putRules: (rules: RuleView[]) => req<void>("/api/rules", { method: "PUT", body: JSON.stringify(rules) }),
-  dryRun: (text: string) => req<DryHit[]>("/api/rules/dry-run", { method: "POST", body: JSON.stringify({ text }) }),
   allowlist: () => req<string[]>("/api/allowlist"),
   putAllowlist: (list: string[]) => req<void>("/api/allowlist", { method: "PUT", body: JSON.stringify(list) }),
   upstream: () => req<{ anthropic_upstream: string; openai_completions_upstream: string; openai_responses_upstream: string; routes?: ClientRoute[] }>("/api/upstream"),

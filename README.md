@@ -104,8 +104,6 @@ A rule replaces matching text with `{{TYPE_ULID}}` before the request leaves. Sa
 
 **Allowlist:** one string per line that must never be replaced (`localhost` is already there).
 
-**Dry-run:** paste a real log, run locally, **nothing is sent to the model**. Do this before you trust a new regex.
-
 Higher priority wins on overlap. If a body cannot be proven clean, Veil returns **502** and does not forward.
 
 ---

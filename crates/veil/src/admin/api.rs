@@ -8,8 +8,6 @@ use axum::Json;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use veil_engine::builtin::builtin_ruleset;
-use veil_engine::mapping::MemoryStore;
-use veil_engine::rules::{Allowlist, Rule, RuleSet};
 
 use crate::config::{generate_admin_token, Config, RuleConfig, RuleSource};
 use crate::master_key::{create_secret_file, load_or_create};
@@ -162,71 +160,6 @@ pub async fn put_rules(
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
     StatusCode::NO_CONTENT.into_response()
-}
-#[derive(Deserialize)]
-pub struct DryRunReq {
-    pub text: String,
-}
-
-#[derive(Serialize)]
-struct DryHit {
-    type_prefix: String,
-    start: usize,
-    end: usize,
-    matched: String,
-}
-
-pub async fn post_dry_run(
-    State(state): State<AdminState>,
-    headers: HeaderMap,
-    Json(req): Json<DryRunReq>,
-) -> impl IntoResponse {
-    if let Err(code) = require_token(&state, &headers, true) {
-        return code.into_response();
-    }
-    let cfg = state
-        .config
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone();
-    let set = ruleset_from_config(&cfg);
-    let _throwaway = MemoryStore::new();
-    let hits: Vec<DryHit> = set
-        .find_hits(&req.text)
-        .into_iter()
-        .map(|h| DryHit {
-            type_prefix: h.type_prefix,
-            start: h.start,
-            end: h.end,
-            matched: h.plaintext,
-        })
-        .collect();
-    Json(hits).into_response()
-}
-
-fn ruleset_from_config(cfg: &Config) -> RuleSet {
-    if cfg.rules.is_empty() {
-        return builtin_ruleset();
-    }
-    let mut rules = Vec::new();
-    for r in &cfg.rules {
-        let mut rule = if let Some(words) = &r.words {
-            if !words.is_empty() {
-                Rule::dictionary(&r.id, &r.type_prefix, words.clone(), r.priority)
-            } else if let Some(pat) = &r.pattern {
-                Rule::regex(&r.id, &r.type_prefix, pat, r.priority)
-            } else {
-                continue;
-            }
-        } else if let Some(pat) = &r.pattern {
-            Rule::regex(&r.id, &r.type_prefix, pat, r.priority)
-        } else {
-            continue;
-        };
-        rule.enabled = r.enabled;
-        rules.push(rule);
-    }
-    RuleSet::new(rules, Allowlist::from(cfg.allowlist.clone()))
 }
 
 pub async fn get_allowlist(

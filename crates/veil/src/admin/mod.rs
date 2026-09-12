@@ -19,7 +19,6 @@ pub fn router(state: AdminState) -> Router {
     Router::new()
         .route("/api/status", get(api::get_status))
         .route("/api/rules", get(api::get_rules).put(api::put_rules))
-        .route("/api/rules/dry-run", post(api::post_dry_run))
         .route(
             "/api/allowlist",
             get(api::get_allowlist).put(api::put_allowlist),
