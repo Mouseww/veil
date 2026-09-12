@@ -96,3 +96,13 @@ Cursor、Python、环境变量等细接法见 [使用说明](docs/使用.md)。
 
 双击即启动。`veil stop` 停掉。映射表加密落在本机，没有任何统计往外打。
 
+也可以在管理页 **上游** 里点「接入 Veil」，不必先跑命令行。
+
+## 界面
+
+<img width="1437" height="723" alt="看板" src="https://github.com/user-attachments/assets/8289fb9c-9857-4c49-b973-a2ab3f50a6aa" />
+
+<img width="1408" height="715" alt="规则" src="https://github.com/user-attachments/assets/6c35af52-f974-4115-bd7c-3a2642874670" />
+
+<img width="1435" height="732" alt="上游" src="https://github.com/user-attachments/assets/3c2bed66-0ee2-4f7a-afea-3df661006938" />
+
