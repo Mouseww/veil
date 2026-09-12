@@ -46,6 +46,8 @@ veil setup
 
 勾选你正在用的软件。Veil 会读走每个软件**现在的 API 地址**（官方或自定义中转都行），给它单独开一个本机端口，再把软件指过来。不同工具、不同上游，互不覆盖。然后重启这些软件，照常聊天。官方 Claude 登录不用另填 Key。
 
+也可以在管理页 **上游** 里点「接入 Veil」，不必先跑命令行。
+
 也可以去 [Releases](https://github.com/Mouseww/veil/releases/latest) 下载 `veil-windows-x64.exe` 双击，效果一样。
 
 ---
@@ -73,7 +75,7 @@ Cursor、Python、环境变量等细接法见 [使用说明](docs/使用.md)。
 
 打开管理页 → **规则**。
 
-出厂会拦：私钥、API Key、Token、数据库连接串、登录密码、手机号、身份证、IP。邮箱默认关掉，误伤太多。
+出厂会拦：私钥、API Key、Token、数据库连接串、登录密码、手机号、身份证、IP。邮箱默认关掉，误报太多。
 
 点开关就能停一条。点开一行能改正则、词表、优先级。底下可以加自己的：项目代号、内部人名，化名就会变成 `{{CODENAME_…}}`。
 
@@ -83,26 +85,20 @@ Cursor、Python、环境变量等细接法见 [使用说明](docs/使用.md)。
 
 ---
 
-## UI
-<img width="1439" height="729" alt="image" src="https://github.com/user-attachments/assets/4aa16ca0-6942-48de-a86a-c1b6e67486aa" />
-<img width="1426" height="726" alt="image" src="https://github.com/user-attachments/assets/afdf6327-34ae-4b26-bc45-9001d635cbad" />
-<img width="1152" height="632" alt="image" src="https://github.com/user-attachments/assets/9ef630e2-8c44-462d-af70-22a39734eaa8" />
-<img width="1399" height="648" alt="image" src="https://github.com/user-attachments/assets/004ef3a7-b335-49b3-889a-d008098da82a" />
-
-
-
+## 以后
 
 管理页点「检查更新」。或 `veil update`。
 
 双击即启动。`veil stop` 停掉。映射表加密落在本机，没有任何统计往外打。
 
-也可以在管理页 **上游** 里点「接入 Veil」，不必先跑命令行。
+---
 
 ## 界面
 
-<img width="1437" height="723" alt="看板" src="https://github.com/user-attachments/assets/8289fb9c-9857-4c49-b973-a2ab3f50a6aa" />
+<img width="1439" height="729" alt="看板" src="https://github.com/user-attachments/assets/4aa16ca0-6942-48de-a86a-c1b6e67486aa" />
 
-<img width="1408" height="715" alt="规则" src="https://github.com/user-attachments/assets/6c35af52-f974-4115-bd7c-3a2642874670" />
+<img width="1426" height="726" alt="规则" src="https://github.com/user-attachments/assets/afdf6327-34ae-4b26-bc45-9001d635cbad" />
 
-<img width="1435" height="732" alt="上游" src="https://github.com/user-attachments/assets/3c2bed66-0ee2-4f7a-afea-3df661006938" />
+<img width="1152" height="632" alt="上游" src="https://github.com/user-attachments/assets/9ef630e2-8c44-462d-af70-22a39734eaa8" />
 
+<img width="1399" height="648" alt="密钥" src="https://github.com/user-attachments/assets/004ef3a7-b335-49b3-889a-d008098da82a" />
