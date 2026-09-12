@@ -1,17 +1,21 @@
-Veil 0.3.1 — one-click update, bilingual console, live traffic.
+Veil 0.3.12
+
+## Added
+
+- Dashboard: request volume (20 min), alias mix, errors, average latency
+- Upstream tabs: General (port 18787) plus one tab per app from `veil setup`
+- Keys page: plain-language when to touch / when not to
+
+## Removed
+
+- Rules dry-run (UI and `/api/rules/dry-run`)
 
 ## Update
 
+Console: Check for updates, or `veil update`.
+
+If GitHub downloads fail:
+
 ```
-veil update
+gh release download v0.3.12 --repo Mouseww/veil -p veil-windows-x64.exe
 ```
-
-Or in the console: Check for updates → Update now.
-
-From v0.1 (dgw.exe), re-run the install script once.
-
-## Also
-
-- EN / 中文 console
-- Live traffic log
-- Working rules / upstream / keys save
