@@ -136,3 +136,24 @@ async fn non_loopback_requires_token_even_for_status() {
 fn hash_token(t: &str) -> String {
     hex::encode(Sha256::digest(t.as_bytes()))
 }
+
+#[tokio::test]
+async fn clients_lists_all_adapters() {
+    let dir = tempfile::tempdir().unwrap();
+    let (cfg, _token) = loaded(dir.path());
+    let port = bind_admin(dir.path().to_path_buf(), cfg, true).await;
+    let resp = reqwest::get(format!("http://127.0.0.1:{port}/api/clients"))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let list: Vec<serde_json::Value> = resp.json().await.unwrap();
+    let ids: Vec<_> = list.iter().map(|c| c["id"].as_str().unwrap().to_string()).collect();
+    assert!(ids.contains(&"claude".into()));
+    assert!(ids.contains(&"codex".into()));
+    assert!(ids.contains(&"trae".into()));
+    assert!(ids.contains(&"pi".into()));
+    assert!(ids.contains(&"hermes".into()));
+    assert!(ids.contains(&"grok".into()));
+    assert!(ids.contains(&"codebuddy".into()));
+    assert_eq!(list.len(), 7);
+}

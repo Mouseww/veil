@@ -96,8 +96,33 @@ pub fn spec(id: &str) -> Option<&'static ClientSpec> {
     CLIENTS.iter().find(|c| c.id == id)
 }
 
+/// Capture this app's current API URL, assign a local port, point the app at Veil.
+pub fn wire_client(
+    cfg: &mut crate::config::Config,
+    id: &str,
+    explicit_upstream: Option<&str>,
+) -> Result<(ApplyResult, crate::config::ClientRoute), Error> {
+    let spec = spec(id).ok_or_else(|| Error::Setup(format!("unknown client: {id}")))?;
+    let peeked = peek_previous(id);
+    let upstream = if let Some(prev) = peeked.as_deref() {
+        setup::origin_from_base(prev)
+    } else if let Some(existing) = cfg.routes.iter().find(|r| r.id == id) {
+        existing.upstream.clone()
+    } else if let Some(url) = explicit_upstream {
+        setup::origin_from_base(url)
+    } else if spec.kind == "anthropic" {
+        cfg.anthropic_upstream.clone()
+    } else {
+        cfg.openai_completions_upstream.clone()
+    };
+    let route = cfg.upsert_route(id, spec.label, spec.kind, &upstream);
+    let local = format!("http://127.0.0.1:{}", route.port);
+    let applied = apply_client(id, &local)?;
+    Ok((applied, route))
+}
+
 /// Read the tool's current Base URL without writing.
-pub fn peek_previous(id: &str) -> Option<String> {
+pub fn peek_base_url(id: &str) -> Option<String> {
     let raw = match id {
         "claude" => peek_json_env(&crate::setup::claude_settings_path(), "ANTHROPIC_BASE_URL"),
         "codex" => {
@@ -112,7 +137,17 @@ pub fn peek_previous(id: &str) -> Option<String> {
         _ => None,
     }?;
     let raw = raw.trim().to_string();
-    if raw.is_empty() || setup::is_local_proxy(&raw) {
+    if raw.is_empty() {
+        None
+    } else {
+        Some(raw)
+    }
+}
+
+/// Like peek_base_url, but ignore URLs that already point at this Veil instance.
+pub fn peek_previous(id: &str) -> Option<String> {
+    let raw = peek_base_url(id)?;
+    if setup::is_local_proxy(&raw) {
         None
     } else {
         Some(raw)

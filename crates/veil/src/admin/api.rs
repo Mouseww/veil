@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
@@ -274,6 +274,78 @@ pub async fn put_settings(
         return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
     }
     StatusCode::NO_CONTENT.into_response()
+}
+
+#[derive(Serialize)]
+pub struct ClientInfo {
+    pub id: String,
+    pub label: String,
+    pub kind: String,
+    pub detected: bool,
+    pub wired: bool,
+    pub port: Option<u16>,
+    pub upstream: Option<String>,
+    pub app_base_url: Option<String>,
+    pub veil_url: Option<String>,
+}
+
+pub async fn get_clients(State(state): State<AdminState>, headers: HeaderMap) -> impl IntoResponse {
+    if let Err(code) = require_token(&state, &headers, false) {
+        return code.into_response();
+    }
+    let cfg = state.config.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let list: Vec<ClientInfo> = crate::clients::CLIENTS
+        .iter()
+        .map(|spec| {
+            let route = cfg.routes.iter().find(|r| r.id == spec.id);
+            let veil_url = route.map(|r| {
+                if spec.kind == "anthropic" {
+                    format!("http://127.0.0.1:{}", r.port)
+                } else {
+                    format!("http://127.0.0.1:{}/v1", r.port)
+                }
+            });
+            ClientInfo {
+                id: spec.id.into(),
+                label: spec.label.into(),
+                kind: spec.kind.into(),
+                detected: crate::clients::is_detected(spec.id),
+                wired: route.is_some(),
+                port: route.map(|r| r.port),
+                upstream: route.map(|r| r.upstream.clone()),
+                app_base_url: crate::clients::peek_base_url(spec.id),
+                veil_url,
+            }
+        })
+        .collect();
+    Json(list).into_response()
+}
+
+pub async fn post_client_setup(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> impl IntoResponse {
+    if let Err(code) = require_token(&state, &headers, false) {
+        return code.into_response();
+    }
+    let mut cfg = state.config.lock().unwrap_or_else(|e| e.into_inner());
+    match crate::clients::wire_client(&mut cfg, &id, None) {
+        Ok((applied, route)) => {
+            if let Err(e) = cfg.save(&state.data_dir) {
+                return (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response();
+            }
+            Json(serde_json::json!({
+                "id": applied.id,
+                "path": applied.path.display().to_string(),
+                "port": route.port,
+                "upstream": route.upstream,
+                "restart_veil": true,
+            }))
+            .into_response()
+        }
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
 }
 
 #[derive(Deserialize)]

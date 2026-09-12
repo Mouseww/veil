@@ -292,26 +292,11 @@ fn cmd_setup(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("each app keeps its own upstream behind a local port");
     for id in &ids {
-        let spec = clients::spec(id).expect("resolved id");
-        let peeked = clients::peek_previous(id);
-        let upstream = if let Some(prev) = peeked.as_deref() {
-            setup::origin_from_base(prev)
-        } else if let Some(existing) = cfg.routes.iter().find(|r| r.id == *id) {
-            existing.upstream.clone()
-        } else if let Some(url) = explicit.as_deref() {
-            setup::origin_from_base(url)
-        } else if spec.kind == "anthropic" {
-            cfg.anthropic_upstream.clone()
-        } else {
-            cfg.openai_completions_upstream.clone()
-        };
-        let route = cfg.upsert_route(id, spec.label, spec.kind, &upstream);
-        let local = format!("http://127.0.0.1:{}", route.port);
-        let r = clients::apply_client(id, &local)?;
+        let (r, route) = clients::wire_client(&mut cfg, id, explicit.as_deref())?;
         println!(
-            "  {}  {}  →  {}  ({})",
+            "  {}  http://127.0.0.1:{}  →  {}  ({})",
             r.id,
-            local,
+            route.port,
             route.upstream,
             r.path.display()
         );

@@ -22,6 +22,18 @@ export type TrafficEvent = {
   creator_prefix8: string;
 };
 
+export type ClientInfo = {
+  id: string;
+  label: string;
+  kind: string;
+  detected: boolean;
+  wired: boolean;
+  port: number | null;
+  upstream: string | null;
+  app_base_url: string | null;
+  veil_url: string | null;
+};
+
 export type ClientRoute = {
   id: string;
   label: string;
@@ -75,6 +87,8 @@ export const api = {
   upstream: () => req<{ anthropic_upstream: string; openai_completions_upstream: string; openai_responses_upstream: string; routes?: ClientRoute[] }>("/api/upstream"),
   putUpstream: (u: { anthropic_upstream: string; openai_completions_upstream: string; openai_responses_upstream: string; routes?: ClientRoute[] }) =>
     req<void>("/api/upstream", { method: "PUT", body: JSON.stringify(u) }),
+  clients: () => req<ClientInfo[]>("/api/clients"),
+  setupClient: (id: string) => req<{ id: string; path: string; port: number; upstream: string; restart_veil?: boolean }>("/api/clients/" + id + "/setup", { method: "POST" }),
   putSettings: (s: { mapping_ttl_days?: number; request_body_limit_mib?: number }) =>
     req<void>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),
   rotateKey: (new_key: string) => req<{ rotated: boolean }>("/api/master-key", { method: "POST", body: JSON.stringify({ new_key }) }),
