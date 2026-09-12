@@ -18,14 +18,17 @@ export default function KeysPage() {
     <section>
       <h1>{t.keysTitle}</h1>
       <p className="help">{t.helpKeys}</p>
-      {msg && <p className="flash">{msg}</p>}
+      <p className="flash">{t.keysLeaveAlone}</p>
+      {msg && <p className="ok">{msg}</p>}
       {err && <p className="err">{err}</p>}
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h2>{t.keyMasterTitle}</h2>
         <p className="help">{t.keyMasterWhat}</p>
+        <p><strong>{t.keysWhen}</strong> {t.keyMasterWhen}</p>
+        <p className="muted"><strong>{t.keysWhenNot}</strong> {t.keyMasterWhenNot}</p>
         <p className="err">{t.keyMasterImpact}</p>
-        <label>{t.newKey}<input value={hex} onChange={(e) => setHex(e.target.value)} placeholder="64 hex" /></label>
+        <label>{t.newKey}<input value={hex} onChange={(e) => setHex(e.target.value)} /></label>
         <button type="button" className="ghost" onClick={() => setHex(randHex64())}>{t.genKey}</button>
         <button type="button" onClick={async () => {
           try {
@@ -40,8 +43,10 @@ export default function KeysPage() {
       <div className="card" style={{ marginBottom: 16 }}>
         <h2>{t.keyPurgeTitle}</h2>
         <p className="help">{t.keyPurgeWhat}</p>
+        <p><strong>{t.keysWhen}</strong> {t.keyPurgeWhen}</p>
+        <p className="muted"><strong>{t.keysWhenNot}</strong> {t.keyPurgeWhenNot}</p>
         <p className="err">{t.keyPurgeImpact}</p>
-        <label>{t.purgePrefix}<input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="abcd1234" /></label>
+        <label>{t.purgePrefix}<input value={prefix} onChange={(e) => setPrefix(e.target.value)} /></label>
         <button type="button" onClick={async () => {
           try {
             await api.purge(prefix || undefined);
@@ -54,7 +59,8 @@ export default function KeysPage() {
       <div className="card">
         <h2>{t.keyAdminTitle}</h2>
         <p className="help">{t.keyAdminWhat}</p>
-        <p className="muted">{t.keyAdminImpact}</p>
+        <p><strong>{t.keysWhen}</strong> {t.keyAdminWhen}</p>
+        <p className="muted"><strong>{t.keysWhenNot}</strong> {t.keyAdminWhenNot}</p>
         <button type="button" onClick={async () => {
           try {
             const tok = await api.resetToken();
