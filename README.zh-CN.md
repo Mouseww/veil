@@ -85,7 +85,14 @@ Cursor、Python、环境变量等细接法见 [使用说明](docs/使用.md)。
 
 ---
 
-## 以后
+## UI
+<img width="1439" height="729" alt="image" src="https://github.com/user-attachments/assets/4aa16ca0-6942-48de-a86a-c1b6e67486aa" />
+<img width="1426" height="726" alt="image" src="https://github.com/user-attachments/assets/afdf6327-34ae-4b26-bc45-9001d635cbad" />
+<img width="1152" height="632" alt="image" src="https://github.com/user-attachments/assets/9ef630e2-8c44-462d-af70-22a39734eaa8" />
+<img width="1399" height="648" alt="image" src="https://github.com/user-attachments/assets/004ef3a7-b335-49b3-889a-d008098da82a" />
+
+
+
 
 管理页点「检查更新」。或 `veil update`。
 
