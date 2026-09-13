@@ -71,6 +71,21 @@ fn ui_url(cfg: &Config) -> String {
     format!("http://{}:{}/", cfg.bind, cfg.management_port)
 }
 
+/// Build the UI URL with the admin token embedded as a query param so the
+/// browser page can auto-populate the token field on first open.
+/// Falls back to the plain URL if the token file cannot be read.
+fn ui_url_with_token(cfg: &Config, data_dir: &std::path::Path) -> String {
+    let base = ui_url(cfg);
+    let token_path = data_dir.join("admin.token");
+    if let Ok(raw) = std::fs::read_to_string(&token_path) {
+        let token = raw.trim();
+        if !token.is_empty() {
+            return format!("{base}?token={token}");
+        }
+    }
+    base
+}
+
 fn open_browser(url: &str) {
     let _ = if cfg!(windows) {
         std::process::Command::new("cmd")
@@ -105,14 +120,14 @@ async fn cmd_start(foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(existing) = process::read_pid(&data_dir)? {
             if process::pid_is_alive(existing.pid) && existing.exe == process::current_exe() {
                 print_ready(&cfg);
-                open_browser(&ui_url(&cfg));
+                open_browser(&ui_url_with_token(&cfg, &data_dir));
                 return Ok(());
             }
         }
         process::spawn_daemon(&process::current_exe())?;
         std::thread::sleep(std::time::Duration::from_millis(800));
         print_ready(&cfg);
-        open_browser(&ui_url(&cfg));
+        open_browser(&ui_url_with_token(&cfg, &data_dir));
         return Ok(());
     }
     let outcome = process::try_start(
@@ -128,7 +143,7 @@ async fn cmd_start(foreground: bool) -> Result<(), Box<dyn std::error::Error>> {
         }
         StartOutcome::Started { .. } => {
             print_ready(&cfg);
-            open_browser(&ui_url(&cfg));
+            open_browser(&ui_url_with_token(&cfg, &data_dir));
             serve(&data_dir, &cfg).await
         }
     }

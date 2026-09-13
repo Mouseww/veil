@@ -23,10 +23,18 @@ export default function App() {
   const { t } = useT();
   const { dark, toggle } = useTheme();
   const [tab, setTab] = useState<Tab>("status");
-  const [token, setToken] = useState("");
+  const [token, setToken] = useState(() => sessionStorage.getItem("veil_admin") ?? "");
   const [running, setRunning] = useState(true);
   const [ver, setVer] = useState("");
   useEffect(() => {
+    // Pick up token injected by the desktop launcher via ?token=xxx
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get("token");
+    if (urlToken) {
+      setToken(urlToken);
+      setAdminToken(urlToken);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     api.status().then((s) => { setRunning(true); setVer(s.version ?? ""); }).catch(() => setRunning(false));
   }, []);
   const tabs: { id: Tab; label: string; icon: typeof Ico.dash }[] = [
