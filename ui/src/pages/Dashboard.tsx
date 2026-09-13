@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api, type TrafficEvent } from "../api";
 import { useT } from "../i18n";
 
+type UpdateInfo = { current: string; latest: string; newer: boolean };
+
 const WINDOW_MIN = 20;
 
 function buckets(events: TrafficEvent[], now: number) {
@@ -72,6 +74,9 @@ export default function DashboardPage() {
   const [events, setEvents] = useState<TrafficEvent[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [ver, setVer] = useState("");
+  const [upd, setUpd] = useState<UpdateInfo | null>(null);
+  const [updMsg, setUpdMsg] = useState("");
   useEffect(() => {
     let on = true;
     const tick = () => {
@@ -79,6 +84,7 @@ export default function DashboardPage() {
     };
     tick();
     const id = setInterval(tick, 4000);
+    api.status().then((s) => { if (on) setVer(s.version ?? ""); }).catch(() => undefined);
     return () => { on = false; clearInterval(id); };
   }, []);
   const stats = useMemo(() => {
@@ -127,6 +133,24 @@ export default function DashboardPage() {
           </div>
         </>
       )}
+      <div className="update-row">
+        <span className="muted">{t.version}: {ver || "?"}{upd ? (upd.newer ? ` → ${upd.latest}` : ` · ${t.upToDate}`) : ""}</span>
+        <button type="button" onClick={async () => {
+          setUpdMsg("");
+          try {
+            const u = await api.checkUpdate();
+            setUpd(u);
+            setUpdMsg(u.newer ? t.updateAvail : t.upToDate);
+          } catch (e) { setUpdMsg(String(e)); }
+        }}>{t.checkUpdate}</button>
+        {upd?.newer && (
+          <button type="button" onClick={async () => {
+            setUpdMsg(t.updating);
+            try { await api.applyUpdate(); } catch (e) { setUpdMsg(String(e)); }
+          }}>{t.updateNow}</button>
+        )}
+        {updMsg && <span className="flash">{updMsg}</span>}
+      </div>
     </section>
   );
 }

@@ -177,3 +177,7 @@ aside input.token { font-size: 12px; }
   aside.nav { border-right: 0; border-bottom: 1px solid var(--border); }
   .row { grid-template-columns: 1fr; }
 }
+.update-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);
+}
