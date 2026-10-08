@@ -7,7 +7,6 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use veil_engine::builtin::builtin_ruleset;
 
 use crate::config::{generate_admin_token, Config, RuleConfig, RuleSource};
 use crate::master_key::{create_secret_file, load_or_create};
@@ -67,6 +66,10 @@ pub async fn get_status(State(state): State<AdminState>, headers: HeaderMap) -> 
         .into_iter()
         .rev()
         .find_map(|e| e.error_class);
+    let rule_count = crate::ruleset::ruleset_from_config(&cfg)
+        .rules()
+        .len()
+        .max(cfg.rules.len());
     Json(StatusBody {
         product: "Veil",
         bind: cfg.bind,
@@ -78,7 +81,7 @@ pub async fn get_status(State(state): State<AdminState>, headers: HeaderMap) -> 
         mapping_ttl_days: cfg.mapping_ttl_days,
         request_body_limit_mib: cfg.request_body_limit_mib,
         master_key_set,
-        rule_count: builtin_ruleset().rules().len().max(cfg.rules.len()),
+        rule_count,
         last_error_class,
         version: crate::update::current_version(),
     })
@@ -106,7 +109,7 @@ pub async fn get_rules(State(state): State<AdminState>, headers: HeaderMap) -> i
         .unwrap_or_else(|e| e.into_inner())
         .clone();
     if cfg.rules.is_empty() {
-        let views: Vec<RuleView> = builtin_ruleset()
+        let views: Vec<RuleView> = crate::ruleset::ruleset_from_config(&cfg)
             .rules()
             .iter()
             .map(|r| RuleView {
@@ -199,6 +202,20 @@ pub struct UpstreamBody {
     pub openai_responses_upstream: String,
     #[serde(default)]
     pub routes: Vec<crate::config::ClientRoute>,
+    #[serde(default)]
+    pub egress_proxy_url: String,
+    #[serde(default)]
+    pub header_profile: String,
+    #[serde(default)]
+    pub accept_language: String,
+    #[serde(default = "bool_true_pack")]
+    pub pack_secrets: bool,
+    #[serde(default = "bool_true_pack")]
+    pub pack_region: bool,
+}
+
+fn bool_true_pack() -> bool {
+    true
 }
 
 pub async fn get_upstream(
@@ -213,11 +230,20 @@ pub async fn get_upstream(
         .lock()
         .unwrap_or_else(|e| e.into_inner())
         .clone();
+    let profile = match cfg.headers.profile {
+        crate::config::HeaderProfile::RegionNeutral => "region_neutral",
+        crate::config::HeaderProfile::Passthrough => "passthrough",
+    };
     Json(UpstreamBody {
         anthropic_upstream: cfg.anthropic_upstream,
         openai_completions_upstream: cfg.openai_completions_upstream,
         openai_responses_upstream: cfg.openai_responses_upstream,
         routes: cfg.routes,
+        egress_proxy_url: cfg.egress.proxy_url,
+        header_profile: profile.into(),
+        accept_language: cfg.headers.accept_language,
+        pack_secrets: cfg.packs.secrets,
+        pack_region: cfg.packs.region,
     })
     .into_response()
 }
@@ -234,6 +260,19 @@ pub async fn put_upstream(
     cfg.anthropic_upstream = body.anthropic_upstream;
     cfg.openai_completions_upstream = body.openai_completions_upstream;
     cfg.openai_responses_upstream = body.openai_responses_upstream;
+    cfg.egress.proxy_url = body.egress_proxy_url.trim().to_string();
+    cfg.headers.profile = match body.header_profile.trim().to_ascii_lowercase().as_str() {
+        "passthrough" => crate::config::HeaderProfile::Passthrough,
+        _ => crate::config::HeaderProfile::RegionNeutral,
+    };
+    if !body.accept_language.trim().is_empty() {
+        cfg.headers.accept_language = body.accept_language;
+    }
+    cfg.packs.secrets = body.pack_secrets;
+    cfg.packs.region = body.pack_region;
+    if let Err(e) = cfg.validate_egress() {
+        return (StatusCode::BAD_REQUEST, e).into_response();
+    }
     if !body.routes.is_empty() {
         for incoming in body.routes {
             if let Some(row) = cfg.routes.iter_mut().find(|r| r.id == incoming.id) {

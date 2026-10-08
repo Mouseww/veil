@@ -68,6 +68,62 @@ impl Default for ClientRoute {
     }
 }
 
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HeaderProfile {
+    #[default]
+    RegionNeutral,
+    Passthrough,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct EgressConfig {
+    /// HTTP/HTTPS/SOCKS5 proxy for upstream forwards. Empty = direct.
+    pub proxy_url: String,
+}
+
+impl Default for EgressConfig {
+    fn default() -> Self {
+        Self {
+            proxy_url: String::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct HeadersConfig {
+    pub profile: HeaderProfile,
+    pub accept_language: String,
+}
+
+impl Default for HeadersConfig {
+    fn default() -> Self {
+        Self {
+            profile: HeaderProfile::RegionNeutral,
+            accept_language: "en-US,en;q=0.9".into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PacksConfig {
+    pub secrets: bool,
+    pub region: bool,
+}
+
+impl Default for PacksConfig {
+    fn default() -> Self {
+        Self {
+            secrets: true,
+            region: true,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
@@ -97,6 +153,12 @@ pub struct Config {
     /// Optional prompt injection (off by default).
     #[serde(default)]
     pub alias_hint: bool,
+    #[serde(default)]
+    pub egress: EgressConfig,
+    #[serde(default)]
+    pub headers: HeadersConfig,
+    #[serde(default)]
+    pub packs: PacksConfig,
 }
 
 fn default_allowlist() -> Vec<String> {
@@ -129,6 +191,9 @@ impl Default for Config {
             rules: Vec::new(),
             allowlist: default_allowlist(),
             alias_hint: false,
+            egress: EgressConfig::default(),
+            headers: HeadersConfig::default(),
+            packs: PacksConfig::default(),
         }
     }
 }
@@ -167,6 +232,9 @@ impl Config {
 
         apply_env_overrides(&mut cfg);
         cfg.clamp();
+        if let Err(e) = cfg.validate_egress() {
+            return Err(Error::Setup(e));
+        }
         Ok(cfg)
     }
 
@@ -215,6 +283,29 @@ impl Config {
 
     fn clamp(&mut self) {
         self.request_body_limit_mib = self.request_body_limit_mib.min(128);
+        self.egress.proxy_url = self.egress.proxy_url.trim().to_string();
+        if self.headers.accept_language.trim().is_empty() {
+            self.headers.accept_language = HeadersConfig::default().accept_language;
+        }
+    }
+
+    /// Validate egress.proxy_url if set. Call after load/save edits.
+    pub fn validate_egress(&self) -> Result<(), String> {
+        let url = self.egress.proxy_url.trim();
+        if url.is_empty() {
+            return Ok(());
+        }
+        let lower = url.to_ascii_lowercase();
+        if !(lower.starts_with("http://")
+            || lower.starts_with("https://")
+            || lower.starts_with("socks5://")
+            || lower.starts_with("socks5h://"))
+        {
+            return Err(format!(
+                "egress.proxy_url must be http(s) or socks5(h), got {url}"
+            ));
+        }
+        Ok(())
     }
 }
 
@@ -250,6 +341,19 @@ mod tests {
     use super::Config;
     use crate::test_env::EnvLock;
     use sha2::{Digest, Sha256};
+
+    #[test]
+    fn egress_and_header_defaults() {
+        let cfg = Config::default();
+        assert!(cfg.egress.proxy_url.is_empty());
+        assert_eq!(cfg.headers.profile, super::HeaderProfile::RegionNeutral);
+        assert_eq!(cfg.headers.accept_language, "en-US,en;q=0.9");
+        assert!(cfg.packs.secrets && cfg.packs.region);
+        assert!(cfg.validate_egress().is_ok());
+        let mut bad = cfg.clone();
+        bad.egress.proxy_url = "ftp://x".into();
+        assert!(bad.validate_egress().is_err());
+    }
 
     #[test]
     fn config_toml_roundtrip_defaults() {

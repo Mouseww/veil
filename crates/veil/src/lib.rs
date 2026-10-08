@@ -9,10 +9,11 @@ pub mod logging;
 pub mod master_key;
 pub mod process;
 pub mod proxy;
+pub mod ruleset;
 pub mod setup;
 pub mod update;
 
-pub use config::{Config, Mode, RuleConfig};
+pub use config::{Config, HeaderProfile, Mode, RuleConfig};
 pub use data_dir::default_data_dir;
 pub use master_key::load_or_create;
 

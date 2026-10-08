@@ -1,6 +1,8 @@
 # Veil
 
-**Hide passwords, tokens, and other secrets when you use large models. Works with the tools already on your machine — one-click install.**
+**Lower geo/environment risk signals on Claude-style official subscriptions; also hide passwords and tokens. One-click install for everyday tools.**
+
+This does not guarantee you will not be banned. Egress IP needs an outbound proxy; bodies and headers such as `Accept-Language` are rewritten via rule packs and header profile.
 
 You drop `.env` into the chat so it can fix a bug. It does — and the password is already sitting on someone else's server.
 
@@ -73,7 +75,7 @@ Company relay / LiteLLM: set the relay root on the **Upstream** page; the key in
 
 Open the console → **Rules**.
 
-Out of the box it catches private keys, API keys, tokens, database URLs, login passwords, mainland mobile numbers, national IDs, and IPs. Email is off — too many false hits.
+Built-in packs: `secrets` (keys, tokens, connection strings, passwords, mainland mobile/IDs, IPs) and `region` (time zones like Asia/Shanghai, locales like zh-CN). Email is off by default. Tune `[packs]`, `[egress]`, and `[headers]` in `config.toml`; restart after proxy/header changes.
 
 Flip a switch to pause a rule. Open a row to edit the regex, word list, or priority. Add your own at the bottom: project codenames, internal names become `{{CODENAME_…}}`.
 
