@@ -332,7 +332,11 @@ pub async fn get_clients(State(state): State<AdminState>, headers: HeaderMap) ->
     if let Err(code) = require_token(&state, &headers, false) {
         return code.into_response();
     }
-    let cfg = state.config.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let cfg = state
+        .config
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
     let list: Vec<ClientInfo> = crate::clients::CLIENTS
         .iter()
         .map(|spec| {

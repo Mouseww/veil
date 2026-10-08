@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use super::sse::{restore_json_body, SseRestorer};
+use crate::config::{HeaderProfile, HeadersConfig};
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
@@ -9,7 +10,6 @@ use bytes::Bytes;
 use http_body_util::BodyExt;
 use serde_json::Value;
 use veil_engine::builtin::builtin_ruleset;
-use crate::config::{HeaderProfile, HeadersConfig};
 use veil_engine::creator::creator_from_headers;
 use veil_engine::mapping::MappingStore;
 use veil_engine::rules::RuleSet;
@@ -493,7 +493,6 @@ fn restore_response(
     }
 }
 
-
 #[cfg(test)]
 mod header_tests {
     use super::*;
@@ -506,7 +505,9 @@ mod header_tests {
     fn build_client_rejects_empty_scheme_proxy() {
         // Config-level validate_egress catches bad schemes; reqwest may parse odd hosts.
         assert!(crate::config::Config {
-            egress: crate::config::EgressConfig { proxy_url: "ftp://127.0.0.1:1".into() },
+            egress: crate::config::EgressConfig {
+                proxy_url: "ftp://127.0.0.1:1".into()
+            },
             ..Default::default()
         }
         .validate_egress()
