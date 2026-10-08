@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use super::sse::{restore_json_body, SseRestorer};
+use crate::config::{HeaderProfile, HeadersConfig};
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
@@ -28,6 +29,8 @@ pub struct AppState {
     pub traffic: TrafficLog,
     pub default_family: Option<ProtocolFamily>,
     pub alias_hint: bool,
+    pub header_profile: HeaderProfile,
+    pub accept_language: String,
 }
 
 impl AppState {
@@ -36,27 +39,56 @@ impl AppState {
         upstream: UpstreamConfig,
         body_limit_bytes: usize,
     ) -> Self {
-        Self {
+        Self::with_options(
+            store,
+            upstream,
+            body_limit_bytes,
+            Arc::new(builtin_ruleset()),
+            "",
+            HeadersConfig::default(),
+        )
+        .expect("default AppState")
+    }
+
+    pub fn with_options(
+        store: Arc<dyn MappingStore + Send + Sync>,
+        upstream: UpstreamConfig,
+        body_limit_bytes: usize,
+        rules: Arc<RuleSet>,
+        proxy_url: &str,
+        headers: HeadersConfig,
+    ) -> Result<Self, String> {
+        Ok(Self {
             upstream,
             body_limit_bytes,
             store,
-            rules: Arc::new(builtin_ruleset()),
-            client: reqwest::Client::builder()
-                .redirect(reqwest::redirect::Policy::none())
-                .tcp_nodelay(true)
-                .pool_max_idle_per_host(16)
-                .build()
-                .expect("reqwest client"),
+            rules,
+            client: build_http_client(proxy_url)?,
             traffic: TrafficLog::default(),
             default_family: None,
             alias_hint: false,
-        }
+            header_profile: headers.profile,
+            accept_language: headers.accept_language,
+        })
     }
 
     pub fn with_traffic(mut self, traffic: TrafficLog) -> Self {
         self.traffic = traffic;
         self
     }
+}
+
+fn build_http_client(proxy_url: &str) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .tcp_nodelay(true)
+        .pool_max_idle_per_host(16);
+    let proxy_url = proxy_url.trim();
+    if !proxy_url.is_empty() {
+        let proxy = reqwest::Proxy::all(proxy_url).map_err(|e| format!("bad proxy_url: {e}"))?;
+        builder = builder.proxy(proxy);
+    }
+    builder.build().map_err(|e| format!("http client: {e}"))
 }
 
 pub async fn proxy_handler(
@@ -148,11 +180,21 @@ async fn proxy_inner(
     }
 
     let mut builder = state.client.request(method, &url);
+    let force_al = state.header_profile == HeaderProfile::RegionNeutral;
+    let mut wrote_al = false;
     for (name, value) in headers.iter() {
         if skip_request_header(name) {
             continue;
         }
+        if force_al && name == header::ACCEPT_LANGUAGE {
+            builder = builder.header(header::ACCEPT_LANGUAGE, state.accept_language.as_str());
+            wrote_al = true;
+            continue;
+        }
         builder = builder.header(name, value);
+    }
+    if force_al && !wrote_al {
+        builder = builder.header(header::ACCEPT_LANGUAGE, state.accept_language.as_str());
     }
     builder = builder.header(header::ACCEPT_ENCODING, "identity");
     if let Ok(host) = host_from_url(&url) {
@@ -448,5 +490,27 @@ fn restore_response(
         }
     } else {
         Ok(bytes.clone())
+    }
+}
+
+#[cfg(test)]
+mod header_tests {
+    use super::*;
+    #[test]
+    fn build_client_accepts_empty_proxy() {
+        assert!(build_http_client("").is_ok());
+    }
+
+    #[test]
+    fn build_client_rejects_empty_scheme_proxy() {
+        // Config-level validate_egress catches bad schemes; reqwest may parse odd hosts.
+        assert!(crate::config::Config {
+            egress: crate::config::EgressConfig {
+                proxy_url: "ftp://127.0.0.1:1".into()
+            },
+            ..Default::default()
+        }
+        .validate_egress()
+        .is_err());
     }
 }

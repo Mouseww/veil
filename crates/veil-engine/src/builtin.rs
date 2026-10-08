@@ -1,17 +1,39 @@
 use crate::rules::{Allowlist, Rule, RuleSet};
 
-/// Built-in rule pack with the default allowlist.
-pub fn builtin_ruleset() -> RuleSet {
-    let mut email = Rule::regex(
-        "email",
-        "EMAIL",
-        r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-        80,
-    );
-    email.enabled = false;
+/// Which built-in rule packs to include.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PackFlags {
+    pub secrets: bool,
+    pub region: bool,
+}
 
-    RuleSet::new(
-        vec![
+impl Default for PackFlags {
+    fn default() -> Self {
+        Self {
+            secrets: true,
+            region: true,
+        }
+    }
+}
+
+/// Built-in rule pack with the default allowlist (secrets + region).
+pub fn builtin_ruleset() -> RuleSet {
+    builtin_ruleset_with_packs(PackFlags::default())
+}
+
+/// Built-in rules filtered by pack flags.
+pub fn builtin_ruleset_with_packs(packs: PackFlags) -> RuleSet {
+    let mut rules = Vec::new();
+
+    if packs.secrets {
+        let mut email = Rule::regex(
+            "email",
+            "EMAIL",
+            r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
+            80,
+        );
+        email.enabled = false;
+        rules.extend([
             Rule::regex(
                 "pem",
                 "PEM",
@@ -46,9 +68,31 @@ pub fn builtin_ruleset() -> RuleSet {
             Rule::regex("phone", "PHONE", r"(?<!\d)1[3-9]\d{9}(?!\d)", 140),
             Rule::ip("ip", "IP", 120),
             email,
-        ],
-        default_allowlist(),
-    )
+        ]);
+    }
+
+    if packs.region {
+        rules.push(Rule::dictionary(
+            "timezone",
+            "TZ",
+            vec![
+                "Asia/Shanghai".into(),
+                "Asia/Chongqing".into(),
+                "Asia/Urumqi".into(),
+                "Asia/Harbin".into(),
+                "Asia/Hong_Kong".into(),
+            ],
+            115,
+        ));
+        rules.push(Rule::regex(
+            "locale",
+            "LOCALE",
+            r"(?i)(?<![A-Za-z0-9])(?:zh[-_]CN|zh-Hans)(?![A-Za-z0-9])",
+            110,
+        ));
+    }
+
+    RuleSet::new(rules, default_allowlist())
 }
 
 fn default_allowlist() -> Allowlist {
@@ -57,7 +101,7 @@ fn default_allowlist() -> Allowlist {
 
 #[cfg(test)]
 mod tests {
-    use super::builtin_ruleset;
+    use super::{builtin_ruleset, builtin_ruleset_with_packs, PackFlags};
 
     fn types(text: &str) -> Vec<String> {
         builtin_ruleset()
@@ -98,6 +142,25 @@ mod tests {
         let t = types("mobile 13800138000 id 110101199003078515");
         assert!(t.contains(&"PHONE".into()));
         assert!(t.contains(&"IDCARD".into()));
+    }
+
+    #[test]
+    fn region_timezone_and_locale() {
+        let t = types("tz Asia/Shanghai lang zh-CN and zh_CN plus zh-Hans");
+        assert!(t.contains(&"TZ".into()), "{t:?}");
+        assert!(t.iter().filter(|x| *x == "LOCALE").count() >= 1, "{t:?}");
+    }
+
+    #[test]
+    fn packs_can_disable_region() {
+        let set = builtin_ruleset_with_packs(PackFlags {
+            secrets: true,
+            region: false,
+        });
+        assert!(set
+            .find_hits("Asia/Shanghai zh-CN")
+            .iter()
+            .all(|h| h.type_prefix != "TZ" && h.type_prefix != "LOCALE"));
     }
 
     #[test]

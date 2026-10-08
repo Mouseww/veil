@@ -147,7 +147,10 @@ async fn clients_lists_all_adapters() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let list: Vec<serde_json::Value> = resp.json().await.unwrap();
-    let ids: Vec<_> = list.iter().map(|c| c["id"].as_str().unwrap().to_string()).collect();
+    let ids: Vec<_> = list
+        .iter()
+        .map(|c| c["id"].as_str().unwrap().to_string())
+        .collect();
     assert!(ids.contains(&"claude".into()));
     assert!(ids.contains(&"codex".into()));
     assert!(ids.contains(&"trae".into()));

@@ -165,3 +165,16 @@ The persistence behind the Mapping Table. v1 uses a local SQLite file with appli
 ## Mapping Retention（映射留存）
 
 A mapping expires after 90 days of inactivity by default (no write or restore). Each Creator also has a hard cap (100,000 rows); overflow is evicted LRU. The Management UI can change TTL and wipe a Creator prefix. It cannot display plaintext.
+
+
+## Egress Proxy（出站代理）
+
+Optional HTTP/HTTPS/SOCKS5 URL in config.toml [egress] proxy_url. The model-facing reqwest client uses it for Upstream forwards. Empty means direct. Changing it requires a process restart in v1.
+
+## Header Profile（请求头配置）
+
+[headers] profile: region_neutral (default) forces Accept-Language to the configured value on outbound model requests; passthrough leaves client language headers alone (aside from Accept-Encoding: identity). Auth headers are never rewritten.
+
+## Rule Pack（规则组）
+
+Built-in rules are grouped into secrets and region packs under [packs]. Packs can be disabled independently. Custom rules in config still override the live set when non-empty.
