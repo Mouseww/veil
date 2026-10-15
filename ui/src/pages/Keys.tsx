@@ -65,10 +65,11 @@ export default function KeysPage() {
           try {
             const tok = await api.resetToken();
             setAdminToken(tok.token);
-            setMsg(t.tokenStored);
+            setMsg(t.tokenStored + ": " + tok.token);
             setErr("");
           } catch { setErr(t.failed); }
         }}>{t.resetToken}</button>
+        <p className="muted" style={{ marginTop: 10 }}>{t.loginHint}</p>
       </div>
     </section>
   );

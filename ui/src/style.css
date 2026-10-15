@@ -181,3 +181,44 @@ aside input.token { font-size: 12px; }
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);
 }
+
+.login-shell {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 32px 16px;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, color-mix(in srgb, var(--primary) 18%, transparent), transparent),
+    var(--background);
+}
+.login-card {
+  width: min(420px, 100%);
+  padding: 28px 28px 22px;
+}
+.login-brand {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.login-brand svg { width: 36px; height: 36px; flex: none; }
+.login-brand h1 { margin: 0; font-size: 22px; }
+.login-card form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.login-card button[type="submit"] {
+  margin-top: 10px;
+  background: var(--primary);
+  color: var(--primary-fg);
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.login-card button[type="submit"]:disabled { opacity: 0.6; cursor: default; }
+.login-hint { font-size: 12px; line-height: 1.55; margin-top: 16px; }
+.login-foot { margin-top: 12px; display: flex; justify-content: flex-end; }
+.nav-logout {
+  width: 100%;
+  font-size: 12px;
+}

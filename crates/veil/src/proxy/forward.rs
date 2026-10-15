@@ -389,6 +389,9 @@ fn prepare_body(
         }
     } else {
         let text = String::from_utf8_lossy(raw);
+        if veil_engine::binary::should_skip_desensitize(None, &text) {
+            return Ok(raw.clone());
+        }
         let hits = state.rules.find_hits(&text);
         if hits.is_empty() {
             return Ok(raw.clone());
