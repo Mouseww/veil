@@ -1,3 +1,4 @@
+pub mod binary;
 pub mod builtin;
 pub mod creator;
 mod ip;

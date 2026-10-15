@@ -60,10 +60,37 @@ export type StatusBody = {
 
 let adminToken = sessionStorage.getItem("veil_admin") ?? "";
 
+function writeAdminCookie(token: string) {
+  try {
+    if (token) {
+      document.cookie = `veil_admin=${token}; Path=/; SameSite=Lax`;
+    } else {
+      document.cookie = "veil_admin=; Path=/; Max-Age=0; SameSite=Lax";
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getAdminToken() {
+  return adminToken;
+}
+
 export function setAdminToken(token: string) {
   adminToken = token;
   if (token) sessionStorage.setItem("veil_admin", token);
   else sessionStorage.removeItem("veil_admin");
+  writeAdminCookie(token);
+}
+
+/** Probe /api/status with a candidate token (does not persist on failure). */
+export async function verifyAdminToken(token: string): Promise<StatusBody> {
+  const headers = new Headers();
+  if (token) headers.set("x-veil-admin-token", token);
+  const res = await fetch("/api/status", { headers });
+  if (res.status === 401) throw new Error("401");
+  if (!res.ok) throw new Error(String(res.status));
+  return res.json() as Promise<StatusBody>;
 }
 
 async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -71,6 +98,11 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (adminToken) headers.set("x-veil-admin-token", adminToken);
   if (init.body && !headers.has("content-type")) headers.set("content-type", "application/json");
   const res = await fetch(path, { ...init, headers });
+  if (res.status === 401) {
+    const err = new Error("401");
+    (err as Error & { status?: number }).status = 401;
+    throw err;
+  }
   if (!res.ok) throw new Error(String(res.status));
   if (res.status === 204) return undefined as T;
   const ct = res.headers.get("content-type") ?? "";

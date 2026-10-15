@@ -215,3 +215,46 @@ async fn down_store_get_models_still_forwards() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(cap.hits.lock().unwrap().len(), 1);
 }
+
+#[tokio::test]
+async fn base64_image_body_not_corrupted() {
+    let store: Arc<dyn MappingStore + Send + Sync> = Arc::new(MemoryStore::new());
+    let (port, cap, _) = setup(store, 32 * 1024 * 1024).await;
+    let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    let body = serde_json::json!({
+        "model": "claude",
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "phone 13800138000"},
+                {"type": "image", "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": png
+                }}
+            ]
+        }]
+    });
+    let (status, _, _) = send(
+        port,
+        "POST",
+        "/v1/messages",
+        Some("application/json"),
+        serde_json::to_vec(&body).unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let hits = cap.hits.lock().unwrap();
+    assert_eq!(hits.len(), 1);
+    let forwarded: Value = serde_json::from_slice(&hits[0].body).unwrap();
+    let text = forwarded["messages"][0]["content"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert!(text.contains("{{PHONE_"), "{text}");
+    assert_eq!(
+        forwarded["messages"][0]["content"][1]["source"]["data"]
+            .as_str()
+            .unwrap(),
+        png
+    );
+}

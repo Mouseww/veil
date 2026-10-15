@@ -160,3 +160,32 @@ async fn clients_lists_all_adapters() {
     assert!(ids.contains(&"codebuddy".into()));
     assert_eq!(list.len(), 7);
 }
+
+#[tokio::test]
+async fn bearer_authorization_accepted_for_mutating() {
+    let dir = tempfile::tempdir().unwrap();
+    let (cfg, token) = loaded(dir.path());
+    let port = bind_admin(dir.path().to_path_buf(), cfg, true).await;
+    let resp = reqwest::Client::new()
+        .put(format!("http://127.0.0.1:{port}/api/rules"))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!([]))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+}
+
+#[tokio::test]
+async fn non_loopback_accepts_bearer_for_status() {
+    let dir = tempfile::tempdir().unwrap();
+    let (cfg, token) = loaded(dir.path());
+    let port = bind_admin(dir.path().to_path_buf(), cfg, false).await;
+    let resp = reqwest::Client::new()
+        .get(format!("http://127.0.0.1:{port}/api/status"))
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
