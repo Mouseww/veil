@@ -2,6 +2,7 @@
 
 pub mod admin;
 pub mod clients;
+pub mod codex;
 pub mod config;
 pub mod data_dir;
 pub mod env;

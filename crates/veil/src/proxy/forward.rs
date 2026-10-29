@@ -13,18 +13,21 @@ use veil_engine::builtin::builtin_ruleset;
 use veil_engine::creator::creator_from_headers;
 use veil_engine::mapping::MappingStore;
 use veil_engine::rules::RuleSet;
-use veil_engine::walk::{desensitize_json, WalkError};
+use veil_engine::walk::WalkError;
 
 use super::classify::{classify, upstream_base, ProtocolFamily, UpstreamConfig};
+use super::classify::{codex_chatgpt_path, CODEX_CHATGPT_UPSTREAM};
 use crate::admin::{now_unix_ms, TrafficEvent, TrafficLog};
 use crate::logging;
 
 #[derive(Clone)]
 pub struct AppState {
     pub upstream: UpstreamConfig,
+    pub codex_chatgpt_upstream: String,
     pub body_limit_bytes: usize,
     pub store: Arc<dyn MappingStore + Send + Sync>,
     pub rules: Arc<RuleSet>,
+    pub message_cache: Arc<super::MessageCache>,
     pub client: reqwest::Client,
     pub traffic: TrafficLog,
     pub default_family: Option<ProtocolFamily>,
@@ -60,9 +63,11 @@ impl AppState {
     ) -> Result<Self, String> {
         Ok(Self {
             upstream,
+            codex_chatgpt_upstream: CODEX_CHATGPT_UPSTREAM.into(),
             body_limit_bytes,
             store,
             rules,
+            message_cache: Arc::new(super::MessageCache::default()),
             client: build_http_client(proxy_url)?,
             traffic: TrafficLog::default(),
             default_family: None,
@@ -111,7 +116,7 @@ async fn proxy_inner(
     let method_s = method.as_str().to_string();
     let headers = req.headers().clone();
     let started = std::time::Instant::now();
-
+    // 判断请求属于哪一种模型接口
     let family = match classify(&path) {
         Some(f) => f,
         None => match state.default_family {
@@ -145,7 +150,7 @@ async fn proxy_inner(
         ("path", &path),
         ("family", fam),
     ]);
-
+    // 检查请求格式，并读取请求体
     if is_multipart(&headers) {
         return Err((StatusCode::UNSUPPORTED_MEDIA_TYPE, "multipart rejected").into_response());
     }
@@ -155,7 +160,7 @@ async fn proxy_inner(
             return Err((StatusCode::PAYLOAD_TOO_LARGE, "request too large").into_response());
         }
     }
-
+    // 客户端原始内容，可能包含手机号等敏感信息
     let raw = req
         .into_body()
         .collect()
@@ -168,17 +173,28 @@ async fn proxy_inner(
     }
 
     let creator = creator_from_headers(&headers);
-    let body = prepare_body(state, &headers, &raw, &creator)?;
-
-    let base = upstream_base(family, &state.upstream).trim_end_matches('/');
+    let body = prepare_body(state, &headers, &raw, &creator)?; // 已替换敏感信息的内容
+    let requested_stream = serde_json::from_slice::<Value>(&raw)
+        .ok()
+        .and_then(|v| v.get("stream").and_then(Value::as_bool))
+        .unwrap_or(false);
+    // 拼出真正的上游地址
+    let subscription_path = codex_chatgpt_path(&path);
+    // Subscription credentials must not go to the configurable API upstream.
+    let base = if subscription_path.is_some() {
+        state.codex_chatgpt_upstream.as_str()
+    } else {
+        upstream_base(family, &state.upstream)
+    }
+    .trim_end_matches('/');
     let mut url = String::new();
     url.push_str(base);
-    url.push_str(&path);
+    url.push_str(subscription_path.unwrap_or(&path));
     if let Some(q) = query {
         url.push('?');
         url.push_str(&q);
     }
-
+    // 组装请求并发送
     let mut builder = state.client.request(method, &url);
     let force_al = state.header_profile == HeaderProfile::RegionNeutral;
     let mut wrote_al = false;
@@ -210,7 +226,7 @@ async fn proxy_inner(
         ]);
         (StatusCode::BAD_GATEWAY, "upstream error").into_response()
     })?;
-
+    // 收到上游响应头，判断是否为流式响应
     let status =
         StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
     let mut response = Response::builder().status(status);
@@ -226,14 +242,26 @@ async fn proxy_inner(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
         .to_ascii_lowercase();
-    let streaming = content_type.contains("event-stream");
-    let (hit_types, hit_counts) = tally_hits(state, &raw);
+    // The subscription backend can omit/mislabel Content-Type on an SSE response.
+    // Error responses must retain their original (usually JSON) representation.
+    let streaming = content_type.contains("event-stream")
+        || (subscription_path.is_some() && status.is_success() && requested_stream);
+    if streaming {
+        if let Some(headers) = response.headers_mut() {
+            headers.insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("text/event-stream"),
+            );
+        }
+    }
+    let (hit_types, hit_counts) = tally_hits(state, &raw); // 记录页面中看到的流量信息,记录发生在响应体处理之前，所以此时的 200 不代表整个流式回复已经成功结束，耗时也不是完整生成耗时。
     let hits = hit_types.join(",");
     logging::proxy(&[
         ("event", "up"),
         ("path", &path),
         ("status", &status.as_u16().to_string()),
         ("stream", if streaming { "1" } else { "0" }),
+        ("content_type", &content_type),
         ("hits", &hits),
         ("ms", &started.elapsed().as_millis().to_string()),
     ]);
@@ -249,11 +277,11 @@ async fn proxy_inner(
         None,
         &creator.prefix8(),
     );
-
+    // 流式响应
     if streaming {
         return stream_sse(response, upstream, Arc::clone(&state.store), creator);
     }
-
+    // 非流式响应（普通 HTTP 响应）
     let bytes = upstream
         .bytes()
         .await
@@ -274,11 +302,20 @@ fn stream_sse(
     tokio::spawn(async move {
         use futures_util::StreamExt;
         let mut restorer = super::sse::SseRestorer::new(store.as_ref(), creator);
+        let mut utf8_pending = Vec::new();
         let mut stream = upstream.bytes_stream();
         while let Some(item) = stream.next().await {
             match item {
                 Ok(chunk) => {
-                    let text = String::from_utf8_lossy(&chunk);
+                    let text = match decode_stream_chunk(&mut utf8_pending, &chunk) {
+                        Ok(text) => text,
+                        Err(e) => {
+                            let _ = tx
+                                .send(Err(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))
+                                .await;
+                            return;
+                        }
+                    };
                     match restorer.push(&text) {
                         Ok(s) if !s.is_empty() => {
                             if tx.send(Ok(Bytes::from(s))).await.is_err() {
@@ -307,6 +344,15 @@ fn stream_sse(
                 }
             }
         }
+        if !utf8_pending.is_empty() {
+            let _ = tx
+                .send(Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "incomplete UTF-8 stream",
+                )))
+                .await;
+            return;
+        }
         if let Ok(tail) = restorer.flush() {
             if !tail.is_empty() {
                 let _ = tx.send(Ok(Bytes::from(tail))).await;
@@ -319,6 +365,18 @@ fn stream_sse(
     response
         .body(Body::from_stream(body_stream))
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "response").into_response())
+}
+
+fn decode_stream_chunk(pending: &mut Vec<u8>, chunk: &[u8]) -> Result<String, std::str::Utf8Error> {
+    pending.extend_from_slice(chunk);
+    let valid = match std::str::from_utf8(pending) {
+        Ok(_) => pending.len(),
+        Err(e) if e.error_len().is_none() => e.valid_up_to(),
+        Err(e) => return Err(e),
+    };
+    let text = std::str::from_utf8(&pending[..valid])?.to_owned();
+    pending.drain(..valid);
+    Ok(text)
 }
 
 fn tally_hits(state: &AppState, raw: &Bytes) -> (Vec<String>, Vec<u32>) {
@@ -374,7 +432,12 @@ fn prepare_body(
     if looks_like_json(headers, raw) {
         let value: Value = serde_json::from_slice(raw)
             .map_err(|_| (StatusCode::BAD_GATEWAY, "unscannable json").into_response())?;
-        match desensitize_json(&value, &state.rules, state.store.as_ref(), creator) {
+        match state.message_cache.desensitize_json(
+            &value,
+            &state.rules,
+            state.store.as_ref(),
+            creator,
+        ) {
             Ok(mut redacted) => {
                 if state.alias_hint {
                     super::alias_hint::inject_alias_hint(&mut redacted);
@@ -499,6 +562,16 @@ fn restore_response(
 #[cfg(test)]
 mod header_tests {
     use super::*;
+    #[test]
+    fn stream_decodes_chinese_split_at_every_byte() {
+        let mut pending = Vec::new();
+        let mut out = String::new();
+        for b in "已还原手机号。".as_bytes() {
+            out.push_str(&decode_stream_chunk(&mut pending, &[*b]).unwrap());
+        }
+        assert_eq!(out, "已还原手机号。");
+        assert!(pending.is_empty());
+    }
     #[test]
     fn build_client_accepts_empty_proxy() {
         assert!(build_http_client("").is_ok());

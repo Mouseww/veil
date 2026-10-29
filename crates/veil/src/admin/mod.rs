@@ -34,6 +34,10 @@ pub fn router(state: AdminState) -> Router {
         .route("/api/admin-token/reset", post(api::post_reset_token))
         .route("/api/update", get(api::get_update).post(api::post_update))
         .route("/api/clients", get(api::get_clients))
+        .route(
+            "/api/clients/codex/chatgpt",
+            get(api::get_codex_chatgpt).post(api::post_codex_chatgpt),
+        )
         .route("/api/clients/{id}/setup", post(api::post_client_setup))
         .fallback(get(static_file))
         .with_state(state)

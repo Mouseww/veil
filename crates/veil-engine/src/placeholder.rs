@@ -6,7 +6,7 @@ use ulid::Ulid;
 pub static PLACEHOLDER_REGEX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"\{\{([A-Z][A-Z0-9]{0,31})_([0-9A-HJKMNP-TV-Z]{26})\}\}").unwrap());
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Placeholder {
     pub type_prefix: String,
     pub id: Ulid,

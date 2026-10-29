@@ -29,6 +29,26 @@ pub trait MappingStore {
     ) -> Result<Placeholder, StoreError>;
 
     fn lookup(&self, creator: &Creator, placeholder: &Placeholder) -> Result<Lookup, StoreError>;
+
+    /// Validate cached mapping references and refresh their access times.
+    /// The result corresponds to the input order; missing or foreign references
+    /// are false. Store errors must not be treated as cache misses.
+    fn validate_and_touch(
+        &self,
+        creator: &Creator,
+        placeholders: &[Placeholder],
+    ) -> Result<Vec<bool>, StoreError> {
+        placeholders
+            .iter()
+            .map(|p| self.lookup(creator, p).map(|v| matches!(v, Lookup::Hit(_))))
+            .collect()
+    }
+
+    /// Changes after destructive maintenance. Validation remains authoritative
+    /// for stores that cannot publish a generation or are modified externally.
+    fn cache_generation(&self) -> u64 {
+        0
+    }
 }
 
 /// In-memory mapping store with interior mutability.

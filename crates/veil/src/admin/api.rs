@@ -369,7 +369,7 @@ pub async fn post_client_setup(
     headers: HeaderMap,
     Path(id): Path<String>,
 ) -> impl IntoResponse {
-    if let Err(code) = require_token(&state, &headers, false) {
+    if let Err(code) = require_token(&state, &headers, true) {
         return code.into_response();
     }
     let mut cfg = state.config.lock().unwrap_or_else(|e| e.into_inner());
@@ -387,6 +387,29 @@ pub async fn post_client_setup(
             }))
             .into_response()
         }
+        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+    }
+}
+
+pub async fn get_codex_chatgpt(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    if let Err(code) = require_token(&state, &headers, false) {
+        return code.into_response();
+    }
+    Json(crate::codex::status(state.proxy_port)).into_response()
+}
+
+pub async fn post_codex_chatgpt(
+    State(state): State<AdminState>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    if let Err(code) = require_token(&state, &headers, true) {
+        return code.into_response();
+    }
+    match crate::codex::connect(state.proxy_port) {
+        Ok(connection) => Json(connection).into_response(),
         Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
     }
 }

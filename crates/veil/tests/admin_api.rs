@@ -31,6 +31,22 @@ fn loaded(dir: &std::path::Path) -> (Config, String) {
 }
 
 #[tokio::test]
+async fn client_setup_requires_admin_token_even_on_loopback() {
+    let dir = tempfile::tempdir().unwrap();
+    let (cfg, _) = loaded(dir.path());
+    let port = bind_admin(dir.path().into(), cfg, true).await;
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    for path in ["/api/clients/codex/setup", "/api/clients/codex/chatgpt"] {
+        let response = client
+            .post(format!("http://127.0.0.1:{port}{path}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+}
+
+#[tokio::test]
 async fn status_ok_on_loopback_without_token() {
     let dir = tempfile::tempdir().unwrap();
     let (cfg, _token) = loaded(dir.path());

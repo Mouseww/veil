@@ -192,7 +192,9 @@ pub fn detected_ids() -> Vec<&'static str> {
 pub fn is_detected(id: &str) -> bool {
     match id {
         "claude" => home().join(".claude").exists(),
-        "codex" => home().join(".codex").exists(),
+        "codex" => crate::codex::config_path()
+            .parent()
+            .is_some_and(Path::exists),
         "pi" => home().join(".pi").exists(),
         "codebuddy" => home().join(".codebuddy").exists() || vscode_user_dir("CodeBuddy").is_some(),
         "grok" => home().join(".grok").exists(),

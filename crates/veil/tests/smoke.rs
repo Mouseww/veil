@@ -11,7 +11,7 @@ use http_body_util::BodyExt;
 use serde_json::{json, Value};
 use tokio::net::TcpListener;
 use veil::proxy::{router, AppState, UpstreamConfig};
-use veil_engine::mapping::MemoryStore;
+use veil_store::SqliteStore;
 
 #[derive(Clone, Default)]
 struct Cap {
@@ -39,7 +39,8 @@ async fn messages_roundtrip_restores_phone() {
     });
 
     let origin = format!("http://127.0.0.1:{up}");
-    let store = Arc::new(MemoryStore::new());
+    let temp = tempfile::tempdir().unwrap();
+    let store = Arc::new(SqliteStore::open(temp.path().join("smoke.db"), &[7; 32]).unwrap());
     let state = AppState::new(
         store,
         UpstreamConfig {
@@ -49,27 +50,33 @@ async fn messages_roundtrip_restores_phone() {
         },
         32 * 1024 * 1024,
     );
+    let cache = state.message_cache.clone();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     tokio::spawn(async move {
         axum::serve(listener, router(state)).await.unwrap();
     });
 
-    let payload = json!({"messages": [{"content": "call 13800138000"}]});
-    let resp = reqwest::Client::new()
-        .post(format!("http://127.0.0.1:{port}/v1/messages"))
-        .header(header::CONTENT_TYPE, "application/json")
-        .json(&payload)
-        .send()
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let upstream = cap.body.lock().unwrap().clone().unwrap();
-    let up_text = String::from_utf8_lossy(&upstream);
-    assert!(!up_text.contains("13800138000"), "{up_text}");
-    assert!(up_text.contains("{{PHONE_"));
-    let body: Value = resp.json().await.unwrap();
-    let content = body["content"].as_str().unwrap();
-    assert!(content.contains("13800138000"), "{content}");
-    assert!(!content.contains("{{PHONE_"));
+    let client = reqwest::Client::new();
+    for phone in ["13800138000", "13800138000", "13900139000"] {
+        let payload = json!({"messages": [{"content": format!("call {phone}")}]});
+        let resp = client
+            .post(format!("http://127.0.0.1:{port}/v1/messages"))
+            .header(header::CONTENT_TYPE, "application/json")
+            .json(&payload)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let upstream = cap.body.lock().unwrap().clone().unwrap();
+        let up_text = String::from_utf8_lossy(&upstream);
+        assert!(!up_text.contains(phone), "{up_text}");
+        assert!(up_text.contains("{{PHONE_"));
+        let body: Value = resp.json().await.unwrap();
+        let content = body["content"].as_str().unwrap();
+        assert!(content.contains(phone), "{content}");
+        assert!(!content.contains("{{PHONE_"));
+    }
+    assert_eq!(cache.stats().hits, 1);
+    assert_eq!(cache.stats().misses, 2);
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type ClientInfo, type ClientRoute } from "../api";
 import { useT } from "../i18n";
+import CodexChatgpt from "./CodexChatgpt";
 
 export default function UpstreamPage() {
   const { t } = useT();
@@ -44,6 +45,26 @@ export default function UpstreamPage() {
   };
   const active = apps.find((x) => x.id === tab);
   const route = routes.find((x) => x.id === tab);
+  const appControls = active && <>
+    <p className="help">
+      {active.detected ? t.appFound : t.appMissing}
+      {active.wired ? " · " + t.appWired : " · " + t.appNotWired}
+    </p>
+    {active.app_base_url && <p className="muted">{t.appCurrentUrl}: <code>{active.app_base_url}</code></p>}
+    {active.wired && route ? <>
+      <p className="help">{t.helpAppUp(active.label, String(route.port))}</p>
+      <label>{t.tabUpstream}
+        <input value={route.upstream} onChange={(e) => {
+          setRoutes(routes.map((x) => x.id === route.id ? { ...x, upstream: e.target.value } : x));
+        }} />
+      </label>
+      <p className="muted">{t.clientBase}: <code>{active.veil_url}</code></p>
+      <button type="button" onClick={() => void save()}>{t.saveUp}</button>
+    </> : <p className="help">{t.installLead}</p>}
+    <button type="button" disabled={busy === active.id} onClick={() => void install(active.id)}>
+      {busy === active.id ? t.loading : (active.wired ? t.reinstallApp : t.installApp)}
+    </button>
+  </>;
   return (
     <section>
       <h1>{t.upTitle}</h1>
@@ -78,30 +99,10 @@ export default function UpstreamPage() {
       )}
       {active && (
         <>
-          <p className="help">
-            {active.detected ? t.appFound : t.appMissing}
-            {active.wired ? " · " + t.appWired : " · " + t.appNotWired}
-          </p>
-          {active.app_base_url && (
-            <p className="muted">{t.appCurrentUrl}: <code>{active.app_base_url}</code></p>
-          )}
-          {active.wired && route ? (
-            <>
-              <p className="help">{t.helpAppUp(active.label, String(route.port))}</p>
-              <label>{t.tabUpstream}
-                <input value={route.upstream} onChange={(e) => {
-                  setRoutes(routes.map((x) => x.id === route.id ? { ...x, upstream: e.target.value } : x));
-                }} />
-              </label>
-              <p className="muted">{t.clientBase}: <code>{active.veil_url}</code></p>
-              <button type="button" onClick={() => void save()}>{t.saveUp}</button>
-            </>
-          ) : (
-            <p className="help">{t.installLead}</p>
-          )}
-          <button type="button" disabled={busy === active.id} onClick={() => void install(active.id)}>
-            {busy === active.id ? t.loading : (active.wired ? t.reinstallApp : t.installApp)}
-          </button>
+          {active.id === "codex" ? <>
+            <CodexChatgpt />
+            <details><summary>{t.codexApiMode}</summary>{appControls}</details>
+          </> : appControls}
         </>
       )}
     </section>

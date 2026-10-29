@@ -158,6 +158,27 @@ pub struct Config {
     pub headers: HeadersConfig,
     #[serde(default)]
     pub packs: PacksConfig,
+    pub message_cache: MessageCacheConfig,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct MessageCacheConfig {
+    pub enabled: bool,
+    pub capacity_mib: u64,
+    pub max_entry_mib: u64,
+    pub idle_ttl_seconds: u64,
+}
+
+impl Default for MessageCacheConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            capacity_mib: 64,
+            max_entry_mib: 16,
+            idle_ttl_seconds: 600,
+        }
+    }
 }
 
 fn default_allowlist() -> Vec<String> {
@@ -193,6 +214,7 @@ impl Default for Config {
             egress: EgressConfig::default(),
             headers: HeadersConfig::default(),
             packs: PacksConfig::default(),
+            message_cache: MessageCacheConfig::default(),
         }
     }
 }
@@ -337,7 +359,7 @@ pub(crate) fn generate_admin_token() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use super::{Config, MessageCacheConfig};
     use crate::test_env::EnvLock;
     use sha2::{Digest, Sha256};
 
@@ -444,5 +466,23 @@ mod tests {
             Config::load(dir.path()).unwrap().request_body_limit_mib,
             128
         );
+    }
+
+    #[test]
+    fn old_configs_get_cache_defaults_and_explicit_settings_roundtrip() {
+        let old: Config = toml::from_str("request_body_limit_mib = 32").unwrap();
+        assert_eq!(old.message_cache, MessageCacheConfig::default());
+        let explicit: Config = toml::from_str("[message_cache]\nenabled = false\ncapacity_mib = 8\nmax_entry_mib = 4\nidle_ttl_seconds = 60\n").unwrap();
+        assert_eq!(
+            explicit.message_cache,
+            MessageCacheConfig {
+                enabled: false,
+                capacity_mib: 8,
+                max_entry_mib: 4,
+                idle_ttl_seconds: 60
+            }
+        );
+        let again: Config = toml::from_str(&toml::to_string(&explicit).unwrap()).unwrap();
+        assert_eq!(again.message_cache, explicit.message_cache);
     }
 }

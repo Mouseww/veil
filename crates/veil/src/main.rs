@@ -60,6 +60,7 @@ fn print_help() {
     eprintln!("  veil start              start in background");
     eprintln!("  veil start --foreground");
     eprintln!("  veil setup [--clients LIST] [--upstream URL]");
+    eprintln!("  veil setup --clients codex --chatgpt   keep the existing ChatGPT login");
     eprintln!("      clients: claude,codex,pi,codebuddy,grok,hermes,trae,all");
     eprintln!("  veil update [--check]   download latest GitHub release");
     eprintln!("  veil ui                 open the console");
@@ -169,6 +170,18 @@ async fn serve(data_dir: &std::path::Path, cfg: &Config) -> Result<(), Box<dyn s
     .map_err(|e| format!("proxy client: {e}"))?
     .with_traffic(traffic.clone());
     state.alias_hint = cfg.alias_hint;
+    state.message_cache = Arc::new(veil::proxy::MessageCache::new(&cfg.message_cache));
+    let cache = Arc::downgrade(&state.message_cache);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            let Some(cache) = cache.upgrade() else {
+                break;
+            };
+            cache.expire_idle();
+        }
+    });
     let loopback = cfg.bind == "127.0.0.1" || cfg.bind == "localhost" || cfg.bind == "::1";
     let admin = AdminState {
         data_dir: data_dir.to_path_buf(),
@@ -316,8 +329,18 @@ fn cmd_setup(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
         setup::apply_chained_upstream(&mut cfg, Some(url));
     }
     println!("each app keeps its own upstream behind a local port");
+    let mut added_routes = false;
     for id in &ids {
+        if *id == "codex" && args.iter().any(|a| a == "--chatgpt") {
+            let connection = veil::codex::connect(cfg.proxy_port)?;
+            println!("  Codex ChatGPT → {}", connection.base_url);
+            println!("  Profile: {}", connection.profile_path.display());
+            println!("  Start with: {}", connection.launch_command);
+            println!("  Base configuration and existing login are unchanged.");
+            continue;
+        }
         let (r, route) = clients::wire_client(&mut cfg, id, explicit.as_deref())?;
+        added_routes = true;
         println!(
             "  {}  http://127.0.0.1:{}  →  {}  ({})",
             r.id,
@@ -328,9 +351,13 @@ fn cmd_setup(args: &[String]) -> Result<(), Box<dyn std::error::Error>> {
     }
     cfg.save(&data_dir)?;
     println!();
-    println!(
-        "Restart the selected apps. Restart Veil if it was already running, so new ports listen."
-    );
+    if added_routes {
+        println!("Restart the selected apps. Restart Veil if it was already running, so new ports listen.");
+    } else {
+        println!(
+            "Run codex --profile veil. Plain codex is unchanged. Veil does not need restarting."
+        );
+    }
     println!("API keys stay in the client; Veil pass-throughs them.");
     Ok(())
 }

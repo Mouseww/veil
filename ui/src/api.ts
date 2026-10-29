@@ -42,6 +42,13 @@ export type ClientRoute = {
   upstream: string;
 };
 
+export type CodexChatgptConnection = {
+  configured: boolean;
+  profile_path: string;
+  launch_command: string;
+  base_url: string;
+};
+
 export type StatusBody = {
   product: string;
   bind: string;
@@ -120,6 +127,8 @@ export const api = {
   putUpstream: (u: { anthropic_upstream: string; openai_completions_upstream: string; openai_responses_upstream: string; routes?: ClientRoute[] }) =>
     req<void>("/api/upstream", { method: "PUT", body: JSON.stringify(u) }),
   clients: () => req<ClientInfo[]>("/api/clients"),
+  codexChatgpt: () => req<CodexChatgptConnection>("/api/clients/codex/chatgpt"),
+  connectCodexChatgpt: () => req<CodexChatgptConnection>("/api/clients/codex/chatgpt", { method: "POST" }),
   setupClient: (id: string) => req<{ id: string; path: string; port: number; upstream: string; restart_veil?: boolean }>("/api/clients/" + id + "/setup", { method: "POST" }),
   putSettings: (s: { mapping_ttl_days?: number; request_body_limit_mib?: number }) =>
     req<void>("/api/settings", { method: "PUT", body: JSON.stringify(s) }),

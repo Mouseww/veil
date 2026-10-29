@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -35,6 +36,7 @@ pub struct SqliteStore {
     keys: DerivedKeys,
     ttl: Duration,
     cap: u64,
+    generation: AtomicU64,
 }
 
 impl SqliteStore {
@@ -47,6 +49,7 @@ impl SqliteStore {
             keys,
             ttl: DEFAULT_TTL,
             cap: DEFAULT_CAP,
+            generation: AtomicU64::new(0),
         })
     }
 
@@ -106,6 +109,7 @@ impl SqliteStore {
         }
 
         tx.commit().map_err(db_err)?;
+        self.generation.fetch_add(1, Ordering::Release);
         Ok(())
     }
 
@@ -117,6 +121,61 @@ impl SqliteStore {
 }
 
 impl MappingStore for SqliteStore {
+    fn cache_generation(&self) -> u64 {
+        self.generation.load(Ordering::Acquire)
+    }
+
+    fn validate_and_touch(
+        &self,
+        creator: &Creator,
+        placeholders: &[Placeholder],
+    ) -> Result<Vec<bool>, StoreError> {
+        if placeholders.is_empty() {
+            return Ok(Vec::new());
+        }
+        let creator_hex = creator.hex();
+        let now = now_unix();
+        let mut conn = self.lock()?;
+        let tx = conn.transaction().map_err(db_err)?;
+        let mut valid = Vec::with_capacity(placeholders.len());
+        {
+            let mut select = tx
+                .prepare_cached(
+                    "SELECT creator_hex, plaintext_ct FROM mappings WHERE placeholder_id = ?1",
+                )
+                .map_err(db_err)?;
+            let mut update = tx
+                .prepare_cached(
+                    "UPDATE mappings SET last_access_unix = ?1 WHERE placeholder_id = ?2",
+                )
+                .map_err(db_err)?;
+            for placeholder in placeholders {
+                let id = placeholder.id.to_string();
+                let row = select
+                    .query_row([&id], |row| {
+                        Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?))
+                    })
+                    .optional()
+                    .map_err(db_err)?;
+                let Some((owner, ct)) = row else {
+                    valid.push(false);
+                    continue;
+                };
+                if owner != creator_hex {
+                    valid.push(false);
+                    continue;
+                }
+                let plaintext =
+                    decrypt(&self.keys.enc, &ct).map_err(|_| StoreError::Unavailable)?;
+                String::from_utf8(plaintext).map_err(|e| StoreError::Internal(e.to_string()))?;
+                update.execute(params![now, id]).map_err(db_err)?;
+                valid.push(true);
+            }
+        }
+        tx.commit().map_err(db_err)?;
+        Ok(valid)
+    }
+
     fn get_or_insert(
         &self,
         creator: &Creator,
@@ -289,5 +348,81 @@ mod tests {
         assert!(matches!(store.lookup(&c, &p1).unwrap(), Lookup::Miss));
         assert!(matches!(store.lookup(&c, &p2).unwrap(), Lookup::Hit(s) if s == "2"));
         assert!(matches!(store.lookup(&c, &p3).unwrap(), Lookup::Hit(s) if s == "3"));
+    }
+
+    #[test]
+    fn batch_validation_checks_owner_and_missing_ids_and_refreshes_access() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("m.db"), &[9; 32]).unwrap();
+        let creator = anonymous_creator();
+        let own = store
+            .get_or_insert(&creator, "PHONE", "13800138000")
+            .unwrap();
+        let foreign = store
+            .get_or_insert(&Creator::from_secret("other"), "PHONE", "13900139000")
+            .unwrap();
+        store
+            .lock()
+            .unwrap()
+            .execute("UPDATE mappings SET last_access_unix = 0", [])
+            .unwrap();
+        let missing = Placeholder::fresh("PHONE");
+        assert_eq!(
+            store
+                .validate_and_touch(&creator, &[own.clone(), foreign.clone(), missing])
+                .unwrap(),
+            [true, false, false]
+        );
+        let conn = store.lock().unwrap();
+        let time = |p: &Placeholder| {
+            conn.query_row(
+                "SELECT last_access_unix FROM mappings WHERE placeholder_id = ?1",
+                [p.id.to_string()],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+        };
+        assert!(time(&own) > 0);
+        assert_eq!(time(&foreign), 0);
+    }
+
+    #[test]
+    fn batch_validation_authenticates_ciphertext_and_rolls_back_on_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = SqliteStore::open(dir.path().join("m.db"), &[9; 32]).unwrap();
+        let creator = anonymous_creator();
+        let good = store
+            .get_or_insert(&creator, "PHONE", "13800138000")
+            .unwrap();
+        let bad = store
+            .get_or_insert(&creator, "PHONE", "13900139000")
+            .unwrap();
+        {
+            let conn = store.lock().unwrap();
+            conn.execute("UPDATE mappings SET last_access_unix = 0", [])
+                .unwrap();
+            conn.execute(
+                "UPDATE mappings SET plaintext_ct = ?1 WHERE placeholder_id = ?2",
+                params![vec![0u8; 32], bad.id.to_string()],
+            )
+            .unwrap();
+        }
+        assert!(matches!(
+            store.validate_and_touch(&creator, &[good.clone(), bad]),
+            Err(StoreError::Unavailable)
+        ));
+        let time: i64 = store
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT last_access_unix FROM mappings WHERE placeholder_id = ?1",
+                [good.id.to_string()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(time, 0);
+        let generation = store.cache_generation();
+        store.purge().unwrap();
+        assert!(store.cache_generation() > generation);
     }
 }

@@ -73,6 +73,59 @@ async fn setup(
     (proxy_port, cap, store)
 }
 
+#[tokio::test]
+async fn proxy_reuses_chat_and_codex_items_and_keeps_top_level_redaction() {
+    let cap = Capture::default();
+    let (up_port, _) = bind(
+        Router::new()
+            .fallback(capture_handler)
+            .with_state(cap.clone()),
+    )
+    .await;
+    let origin = format!("http://127.0.0.1:{up_port}");
+    let mut state = AppState::new(
+        Arc::new(MemoryStore::new()),
+        UpstreamConfig {
+            anthropic_upstream: origin.clone(),
+            openai_completions_upstream: origin.clone(),
+            openai_responses_upstream: origin.clone(),
+        },
+        1024 * 1024,
+    );
+    state.codex_chatgpt_upstream = origin;
+    state.alias_hint = true;
+    let cache = state.message_cache.clone();
+    assert!(Arc::ptr_eq(&cache, &state.clone().message_cache));
+    let (port, _) = bind(router(state)).await;
+    for (path, field) in [
+        ("/v1/chat/completions", "messages"),
+        ("/codex/responses", "input"),
+    ] {
+        let body = json!({field:[{"role":"user","content":"13800138000"}], "instructions":"server 10.0.0.5"});
+        for _ in 0..2 {
+            let (status, _, _) = send(
+                port,
+                "POST",
+                path,
+                Some("application/json"),
+                serde_json::to_vec(&body).unwrap(),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+        }
+    }
+    assert_eq!(cache.stats().hits, 2);
+    let captured = cap.hits.lock().unwrap();
+    assert_eq!(captured.len(), 4);
+    assert_eq!(captured[0].body, captured[1].body);
+    assert_eq!(captured[2].body, captured[3].body);
+    for request in captured.iter() {
+        let body = std::str::from_utf8(&request.body).unwrap();
+        assert!(!body.contains("13800138000") && !body.contains("10.0.0.5"));
+        assert!(body.contains("{{PHONE_") && body.contains("{{IP_"));
+    }
+}
+
 async fn send(
     port: u16,
     method: &str,

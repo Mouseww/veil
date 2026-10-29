@@ -11,12 +11,13 @@ veil-store = { path = "../veil-store" }
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
+toml_edit = "0.22"
 thiserror.workspace = true
 hex.workspace = true
 rand.workspace = true
 sha2.workspace = true
 base64 = "0.22"
-tokio.workspace = true
+tokio = { workspace = true, features = ["time"] }
 axum.workspace = true
 reqwest.workspace = true
 http-body-util.workspace = true

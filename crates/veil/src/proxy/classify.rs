@@ -1,5 +1,14 @@
 use crate::config::Config;
 
+pub const CODEX_CHATGPT_UPSTREAM: &str = "https://chatgpt.com/backend-api/codex";
+
+pub fn codex_chatgpt_path(path: &str) -> Option<&str> {
+    match path.strip_prefix("/codex")? {
+        p @ ("/models" | "/responses" | "/responses/compact") => Some(p),
+        _ => None,
+    }
+}
+
 /// Protocol family selected from the request path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProtocolFamily {
@@ -9,7 +18,9 @@ pub enum ProtocolFamily {
 }
 
 pub fn classify(path: &str) -> Option<ProtocolFamily> {
-    if path.starts_with("/v1/messages") {
+    if codex_chatgpt_path(path).is_some() {
+        Some(ProtocolFamily::OpenAiResponses)
+    } else if path.starts_with("/v1/messages") {
         Some(ProtocolFamily::Anthropic)
     } else if path.starts_with("/v1/chat/completions") {
         Some(ProtocolFamily::OpenAiCompletions)

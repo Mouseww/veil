@@ -1,9 +1,11 @@
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use fancy_regex::{Regex, RegexBuilder};
 
 const DEFAULT_TIMEOUT_MS: u64 = 50;
 const REGEX_BACKTRACK_LIMIT: usize = 1_000_000;
+static NEXT_RULESET_REVISION: AtomicU64 = AtomicU64::new(1);
 
 /// A user-manageable matcher that detects one class of sensitive value.
 #[derive(Clone, Debug)]
@@ -50,6 +52,7 @@ pub struct Hit {
 pub struct RuleSet {
     rules: Vec<Rule>,
     allowlist: Allowlist,
+    cache_revision: u64,
 }
 
 impl Rule {
@@ -157,9 +160,61 @@ where
 }
 
 impl RuleSet {
+    /// Identity of the immutable compiled policy. Clones share the identity;
+    /// rebuilding also covers regex builder options not visible in source text.
+    pub fn cache_revision(&self) -> u64 {
+        self.cache_revision
+    }
+
+    /// Fingerprint configured rules and allowlists; pair with cache_revision for
+    /// compiled matcher options that are not represented in pattern strings.
+    pub fn cache_fingerprint(&self) -> [u8; 32] {
+        use sha2::{Digest, Sha256};
+        fn field(hash: &mut Sha256, value: &[u8]) {
+            hash.update((value.len() as u64).to_le_bytes());
+            hash.update(value);
+        }
+        let mut hash = Sha256::new();
+        hash.update((self.rules.len() as u64).to_le_bytes());
+        for rule in &self.rules {
+            field(&mut hash, rule.id.as_bytes());
+            field(&mut hash, rule.type_prefix.as_bytes());
+            hash.update([u8::from(rule.enabled)]);
+            hash.update(rule.priority.to_le_bytes());
+            hash.update(rule.timeout_ms.to_le_bytes());
+            match &rule.matcher {
+                Matcher::Regex(re) => {
+                    hash.update([0]);
+                    field(&mut hash, re.as_str().as_bytes());
+                }
+                Matcher::Dictionary(words) => {
+                    hash.update([1]);
+                    hash.update((words.len() as u64).to_le_bytes());
+                    for word in words {
+                        field(&mut hash, word.as_bytes());
+                    }
+                }
+                Matcher::Ip => hash.update([2]),
+                #[cfg(test)]
+                Matcher::BlockUntilTimeout => hash.update([3]),
+            }
+        }
+        let mut allowlist: Vec<_> = self.allowlist.entries.iter().collect();
+        allowlist.sort();
+        hash.update((allowlist.len() as u64).to_le_bytes());
+        for entry in allowlist {
+            field(&mut hash, entry.as_bytes());
+        }
+        hash.finalize().into()
+    }
+
     pub fn new(mut rules: Vec<Rule>, allowlist: Allowlist) -> Self {
         rules.sort_by(|a, b| b.priority.cmp(&a.priority).then_with(|| a.id.cmp(&b.id)));
-        Self { rules, allowlist }
+        Self {
+            rules,
+            allowlist,
+            cache_revision: NEXT_RULESET_REVISION.fetch_add(1, Ordering::Relaxed),
+        }
     }
 
     pub fn rules(&self) -> &[Rule] {
@@ -214,17 +269,29 @@ impl Occupied {
     }
 
     fn overlaps(&self, start: usize, end: usize) -> bool {
-        self.spans.iter().any(|&(s, e)| start < e && end > s)
+        let index = self.spans.partition_point(|&(_, e)| e <= start);
+        self.spans.get(index).is_some_and(|&(s, _)| s < end)
     }
 
-    fn insert(&mut self, start: usize, end: usize) {
-        if start >= end {
+    /// Merge one rule's accepted spans, which are sorted and non-overlapping.
+    fn extend_sorted(&mut self, spans: Vec<(usize, usize)>) {
+        if spans.is_empty() {
             return;
         }
-        self.spans.push((start, end));
-        self.spans.sort_unstable_by_key(|&(s, _)| s);
-        let mut merged: Vec<(usize, usize)> = Vec::new();
-        for (s, e) in self.spans.drain(..) {
+        let mut merged: Vec<(usize, usize)> = Vec::with_capacity(self.spans.len() + spans.len());
+        let mut existing = std::mem::take(&mut self.spans).into_iter().peekable();
+        let mut incoming = spans.into_iter().peekable();
+        while existing.peek().is_some() || incoming.peek().is_some() {
+            let take_existing = match (existing.peek(), incoming.peek()) {
+                (Some(&(s, _)), Some(&(next, _))) => s <= next,
+                (Some(_), None) => true,
+                _ => false,
+            };
+            let (s, e) = if take_existing {
+                existing.next().unwrap()
+            } else {
+                incoming.next().unwrap()
+            };
             if let Some(last) = merged.last_mut() {
                 if s <= last.1 {
                     last.1 = last.1.max(e);
@@ -316,12 +383,15 @@ fn commit_spans(
     occupied: &mut Occupied,
     hits: &mut Vec<Hit>,
 ) {
+    // All matchers return candidates in ascending start order. Dictionary
+    // candidates at the same start retain their longest-first ordering.
+    debug_assert!(spans.windows(2).all(|pair| pair[0].0 <= pair[1].0));
     let mut taken: Vec<(usize, usize)> = Vec::new();
     for (start, end) in spans {
         if start >= end || end > text.len() {
             continue;
         }
-        if occupied.overlaps(start, end) || taken.iter().any(|&(s, e)| start < e && end > s) {
+        if occupied.overlaps(start, end) || taken.last().is_some_and(|&(_, e)| start < e) {
             continue;
         }
         let plaintext = match text.get(start..end) {
@@ -339,9 +409,7 @@ fn commit_spans(
             plaintext: plaintext.to_string(),
         });
     }
-    for (start, end) in taken {
-        occupied.insert(start, end);
-    }
+    occupied.extend_sorted(taken);
 }
 
 #[cfg(test)]
@@ -382,6 +450,25 @@ mod tests {
     }
 
     #[test]
+    fn cache_revision_tracks_rebuilt_compiled_matchers_and_survives_cloning() {
+        let sensitive = Rule::regex("secret", "SECRET", "secret", 1);
+        let mut insensitive = sensitive.clone();
+        insensitive.matcher = Matcher::Regex(
+            RegexBuilder::new("secret")
+                .case_insensitive(true)
+                .build()
+                .unwrap(),
+        );
+        let first = ruleset(vec![sensitive]);
+        let second = ruleset(vec![insensitive]);
+        assert_eq!(first.cache_fingerprint(), second.cache_fingerprint());
+        assert_ne!(first.cache_revision(), second.cache_revision());
+        assert_eq!(first.cache_revision(), first.clone().cache_revision());
+        assert!(first.find_hits("SECRET").is_empty());
+        assert_eq!(second.find_hits("SECRET").len(), 1);
+    }
+
+    #[test]
     fn dictionary_matcher_is_literal() {
         let r = Rule::dictionary("words", "SECRET", vec!["AKIAEXAMPLE".into()], 80);
         let set = ruleset(vec![r]);
@@ -389,6 +476,132 @@ mod tests {
             set.find_hits("AKIAEXAMPLE in text")[0].plaintext,
             "AKIAEXAMPLE"
         );
+    }
+
+    #[test]
+    fn dictionary_overlap_allowlist_and_adjacency_preserve_candidate_order() {
+        let rule = Rule::dictionary(
+            "words",
+            "WORD",
+            ["ab", "abc", "bc", "c", "白", "白🙂", "🙂", "ab"]
+                .into_iter()
+                .map(String::from)
+                .collect(),
+            1,
+        );
+        let set = RuleSet::new(vec![rule], Allowlist::from(["abc", "白🙂"]));
+        let text = "abc白🙂abc";
+        let hits = set.find_hits(text);
+        let plaintexts: Vec<_> = hits.iter().map(|h| h.plaintext.as_str()).collect();
+        // Allowlisted long candidates must not block shorter candidates; duplicates
+        // and nested matches must be rejected, while adjacent matches survive.
+        assert_eq!(plaintexts, ["ab", "c", "白", "🙂", "ab", "c"]);
+        for hit in hits {
+            assert_eq!(&text[hit.start..hit.end], hit.plaintext);
+        }
+    }
+
+    #[test]
+    fn merged_intervals_preserve_gap_boundary_matching() {
+        let set = ruleset(vec![
+            Rule::regex("prefix", "PREFIX", r"^9", 2),
+            Rule::regex("phone", "PHONE", r"(?<!\d)1[3-9]\d{9}(?!\d)", 1),
+        ]);
+        let hits = set.find_hits("913800138000");
+        assert_eq!(hits.len(), 2);
+        assert_eq!((hits[0].start, hits[0].end), (0, 1));
+        assert_eq!(hits[0].type_prefix, "PREFIX");
+        assert_eq!((hits[1].start, hits[1].end), (1, 12));
+        assert_eq!(hits[1].type_prefix, "PHONE");
+    }
+
+    #[test]
+    fn batch_commit_matches_legacy_filter_and_merge() {
+        // Keep an independent reference of the old candidate filtering and
+        // per-span merging to check observable results, including invalid UTF-8
+        // ranges and allowlisted candidates that must not reserve an interval.
+        fn legacy(
+            text: &str,
+            spans: &[(usize, usize)],
+            allowlist: &Allowlist,
+            occupied: &mut Vec<(usize, usize)>,
+        ) -> Vec<Hit> {
+            let mut taken = Vec::new();
+            let mut hits = Vec::new();
+            for &(start, end) in spans {
+                if start >= end
+                    || end > text.len()
+                    || occupied.iter().any(|&(s, e)| start < e && end > s)
+                    || taken.iter().any(|&(s, e)| start < e && end > s)
+                {
+                    continue;
+                }
+                let Some(plaintext) = text.get(start..end) else {
+                    continue;
+                };
+                if allowlist.contains(plaintext) {
+                    continue;
+                }
+                taken.push((start, end));
+                hits.push(Hit {
+                    start,
+                    end,
+                    type_prefix: "TEST".into(),
+                    plaintext: plaintext.into(),
+                });
+            }
+            for span in taken {
+                occupied.push(span);
+                occupied.sort_unstable_by_key(|&(s, _)| s);
+                let mut merged: Vec<(usize, usize)> = Vec::new();
+                for &(s, e) in occupied.iter() {
+                    if let Some(last) = merged.last_mut() {
+                        if s <= last.1 {
+                            last.1 = last.1.max(e);
+                            continue;
+                        }
+                    }
+                    merged.push((s, e));
+                }
+                *occupied = merged;
+            }
+            hits
+        }
+        let text = "a中🙂bc白";
+        let allowlist = Allowlist::from(["中", "bc"]);
+        let mut seed = 47u64;
+        for initial in [vec![], vec![(1, 4), (8, 9)], vec![(0, 1), (9, 13)]] {
+            for case in 0..200 {
+                let mut candidates = vec![(0, 0), (0, 1), (1, 4), (4, 8), (8, 10), (10, 13)];
+                if case % 5 == 0 {
+                    candidates.push((0, text.len()));
+                }
+                for _ in 0..20 {
+                    seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+                    let start = (seed >> 32) as usize % (text.len() + 2);
+                    seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+                    let end = (seed >> 32) as usize % (text.len() + 2);
+                    candidates.push((start, end));
+                }
+                candidates.sort_by_key(|&(s, _)| s);
+                let mut expected_occupied = initial.clone();
+                let expected = legacy(text, &candidates, &allowlist, &mut expected_occupied);
+                let mut occupied = Occupied {
+                    spans: initial.clone(),
+                };
+                let mut hits = Vec::new();
+                commit_spans(
+                    text,
+                    "TEST",
+                    candidates,
+                    &allowlist,
+                    &mut occupied,
+                    &mut hits,
+                );
+                assert_eq!(hits, expected);
+                assert_eq!(occupied.spans, expected_occupied);
+            }
+        }
     }
 
     #[test]

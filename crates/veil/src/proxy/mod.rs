@@ -1,10 +1,12 @@
 mod alias_hint;
 mod classify;
 mod forward;
+mod message_cache;
 mod sse;
 
 pub use classify::{classify, ProtocolFamily, UpstreamConfig};
 pub use forward::{proxy_handler, AppState};
+pub use message_cache::{MessageCache, MessageCacheStats};
 pub use sse::{restore_json_body, SseRestorer};
 
 use axum::routing::any;

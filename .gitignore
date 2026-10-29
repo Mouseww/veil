@@ -11,3 +11,6 @@ master.key
 worktrees
 /release-assets
 /flat-rel
+
+# Local privacy evaluation results and captured traffic
+/reports/privacy-eval/
