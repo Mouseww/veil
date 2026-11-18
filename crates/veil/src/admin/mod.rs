@@ -1,5 +1,6 @@
 mod api;
 mod auth;
+mod local_identity;
 mod traffic;
 
 pub use api::AdminState;
@@ -16,8 +17,24 @@ use rust_embed::RustEmbed;
 struct Dist;
 
 pub fn router(state: AdminState) -> Router {
+    let running_identity = local_identity::RunningIdentity(
+        state
+            .config
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .local_identity
+            .clone(),
+    );
     Router::new()
         .route("/api/status", get(api::get_status))
+        .route(
+            "/api/local-identity",
+            get(local_identity::get_identity).put(local_identity::put_identity),
+        )
+        .route(
+            "/api/local-identity/refresh",
+            post(local_identity::refresh_identity),
+        )
         .route("/api/rules", get(api::get_rules).put(api::put_rules))
         .route(
             "/api/allowlist",
@@ -36,6 +53,7 @@ pub fn router(state: AdminState) -> Router {
         .route("/api/clients", get(api::get_clients))
         .route("/api/clients/{id}/setup", post(api::post_client_setup))
         .fallback(get(static_file))
+        .layer(axum::Extension(running_identity))
         .with_state(state)
 }
 

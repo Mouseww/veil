@@ -12,21 +12,17 @@ pub fn ruleset_from_config(cfg: &Config) -> RuleSet {
     let base = builtin_ruleset_with_packs(packs);
     let allowlist = Allowlist::from(cfg.allowlist.clone());
 
-    if cfg.rules.is_empty() {
-        // Rebuild with config allowlist while keeping built-in rules.
-        return RuleSet::new(base.rules().to_vec(), allowlist);
-    }
-
-    let mut rules = Vec::new();
-    for row in &cfg.rules {
-        if let Some(rule) = rule_from_config(row) {
-            rules.push(rule);
+    let mut rules = if cfg.rules.is_empty() {
+        base.rules().to_vec()
+    } else {
+        let converted: Vec<_> = cfg.rules.iter().filter_map(rule_from_config).collect();
+        if converted.is_empty() {
+            base.rules().to_vec()
+        } else {
+            converted
         }
-    }
-    // If conversion yielded nothing, fall back to packs.
-    if rules.is_empty() {
-        return RuleSet::new(base.rules().to_vec(), allowlist);
-    }
+    };
+    rules.extend(cfg.local_identity.compiled_rules());
     RuleSet::new(rules, allowlist)
 }
 

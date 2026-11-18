@@ -23,7 +23,7 @@ pub struct AdminState {
     pub proxy_port: u16,
     pub management_port: u16,
 }
-fn require_token(
+pub(super) fn require_token(
     state: &AdminState,
     headers: &HeaderMap,
     mutating: bool,
@@ -112,6 +112,7 @@ pub async fn get_rules(State(state): State<AdminState>, headers: HeaderMap) -> i
         let views: Vec<RuleView> = crate::ruleset::ruleset_from_config(&cfg)
             .rules()
             .iter()
+            .filter(|r| !r.id.starts_with("local-identity/"))
             .map(|r| RuleView {
                 id: r.id.clone(),
                 type_prefix: r.type_prefix.clone(),
