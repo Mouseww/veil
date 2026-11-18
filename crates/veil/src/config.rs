@@ -158,6 +158,8 @@ pub struct Config {
     pub headers: HeadersConfig,
     #[serde(default)]
     pub packs: PacksConfig,
+    #[serde(default)]
+    pub local_identity: crate::local_identity::IdentityConfig,
 }
 
 fn default_allowlist() -> Vec<String> {
@@ -193,6 +195,7 @@ impl Default for Config {
             egress: EgressConfig::default(),
             headers: HeadersConfig::default(),
             packs: PacksConfig::default(),
+            local_identity: crate::local_identity::IdentityConfig::default(),
         }
     }
 }

@@ -5,6 +5,7 @@ pub mod clients;
 pub mod config;
 pub mod data_dir;
 pub mod env;
+pub mod local_identity;
 pub mod logging;
 pub mod master_key;
 pub mod process;

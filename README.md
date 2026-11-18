@@ -81,6 +81,28 @@ Flip a switch to pause a rule. Open a row to edit the regex, word list, or prior
 
 Allowlist strings are never replaced (`localhost` is already there). If a body cannot be proven clean, Veil returns **502** and does not forward.
 
+### Local identity protection (optional)
+
+In **Rules → Local identity protection**, sign in with the admin token, choose the categories, and click **Save settings**. The checkbox sets what Veil should load on its next start; saving does not start or restart Veil. The page separately reports the running process and saved settings, and says when a restart is needed. **Reread local identifiers** collects current values again after hardware changes or reinstallation; unchanged values do not require another restart.
+
+Protection is off by default. Collection reads only the computer running Veil, when saving enabled protection or refreshing, never per request. Windows can collect these items:
+
+| What is protected | Matching forms |
+| --- | --- |
+| Claude local `userID` and `machineID` | Exact 64-character IDs; `machineID` also matches its 12-character prefix |
+| Claude Desktop installation ID | UUID with or without hyphens, plus the stored Base64 form |
+| Windows installation, SMBIOS system and SQM IDs | Exact UUIDs with or without hyphens |
+| Windows product ID | Exact product ID, not a Windows activation key |
+| Windows account SID | This machine's SID prefix; the account suffix is preserved |
+| Disk, volume, BIOS, board and chassis serials | Exact collected values and supported normalized forms; generic OEM values are skipped |
+| Physical network adapter MAC addresses | Hyphenated, colon-separated or unseparated forms |
+| Username and computer name (optional) | Username in user paths, account assignments or its own line; complete computer name |
+| Global Git email (optional) | Only the email configured in `git config --global user.email` |
+
+macOS and Linux support available Claude IDs, username/computer name and Git email; hardware collection is currently Windows-only. Deselect a category if it has neither available values nor saved history. Refresh retains old identifiers when a device is temporarily unavailable, and identical scans do not add duplicate pattern groups. Built-in and handwritten rules remain separate.
+
+Collected matching patterns are stored locally in `config.toml`, which contains identifying information: do not share it. The authenticated identity API and its UI return only descriptions, placeholder types, counts and states, never the identifiers or regex patterns. Collection is unavailable in server mode. This covers recognized text values passing through Veil; it does not guarantee coverage of images, arbitrary encodings, authentication headers or traffic bypassing Veil.
+
 ---
 
 ## Later

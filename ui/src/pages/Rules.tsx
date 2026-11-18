@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, type RuleView } from "../api";
 import { useT } from "../i18n";
+import LocalIdentity from "../components/LocalIdentity";
 
 export default function RulesPage() {
   const { t } = useT();
@@ -30,6 +31,7 @@ export default function RulesPage() {
   return (
     <section>
       <h1>{t.rulesTitle}</h1>
+      <LocalIdentity />
       <p className="help">{t.helpRules}</p>
       {flash && <p className="flash">{flash}</p>}
       {rules.map((r) => (

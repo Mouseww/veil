@@ -9,6 +9,32 @@ export type RuleView = {
   words?: string[] | null;
 };
 
+export type LocalIdentitySettings = {
+  enabled: boolean;
+  app_ids: boolean;
+  hardware: boolean;
+  user_context: boolean;
+  git_email: boolean;
+};
+
+export type LocalIdentityCategory = Exclude<keyof LocalIdentitySettings, "enabled">;
+
+export type LocalIdentityState = LocalIdentitySettings & {
+  supported_platform: string;
+  rules: Array<{
+    id: string;
+    type_prefix: string;
+    category: LocalIdentityCategory;
+    variants: number;
+    active: boolean;
+  }>;
+  last_scan: number | null;
+  collection_available: boolean;
+  restart_required: boolean;
+  running_enabled: boolean;
+  running_rule_count: number;
+};
+
 export type TrafficEvent = {
   ts: number;
   method: string;
@@ -112,6 +138,11 @@ async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   status: () => req<StatusBody>("/api/status"),
+  localIdentity: () => req<LocalIdentityState>("/api/local-identity"),
+  putLocalIdentity: (settings: LocalIdentitySettings) =>
+    req<LocalIdentityState>("/api/local-identity", { method: "PUT", body: JSON.stringify(settings) }),
+  refreshLocalIdentity: () =>
+    req<LocalIdentityState>("/api/local-identity/refresh", { method: "POST", body: JSON.stringify({}) }),
   rules: () => req<RuleView[]>("/api/rules"),
   putRules: (rules: RuleView[]) => req<void>("/api/rules", { method: "PUT", body: JSON.stringify(rules) }),
   allowlist: () => req<string[]>("/api/allowlist"),

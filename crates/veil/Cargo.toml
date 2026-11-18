@@ -16,6 +16,7 @@ hex.workspace = true
 rand.workspace = true
 sha2.workspace = true
 base64 = "0.22"
+regex.workspace = true
 tokio.workspace = true
 axum.workspace = true
 reqwest.workspace = true
