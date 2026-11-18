@@ -355,3 +355,71 @@ async fn server_mode_cannot_collect_on_remote_server() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
+
+#[test]
+fn saved_patterns_are_caught_by_their_own_rules() {
+    let mut cfg = Config::default();
+    cfg.local_identity = identity();
+    // Same text a tool would read from config.toml and send upstream.
+    let text = toml::to_string(&cfg.local_identity).unwrap();
+    assert!(!text.contains(r"\-"), "needless escapes leak values");
+    assert!(
+        !text.contains("[-:]?"),
+        "MAC must be listed as literal forms"
+    );
+    let hits = ruleset_from_config(&cfg).find_hits(&text);
+    for value in [
+        "DESKTOP-FIXTURE",
+        "11111-22222-33333-ABCDE",
+        "S-1-5-21-111111111-222222222-333333333",
+        "22345678-1234-4321-abcd-9876543210ab",
+        "32345678-1234-4321-abcd-9876543210ab",
+        "42345678-1234-4321-abcd-9876543210ab",
+        "12345678-1234-4321-abcd-9876543210ab",
+        "AA-BB-CC-DD-EE-12",
+        "AA:BB:CC:DD:EE:12",
+        "AABBCCDDEE12",
+        "A1B2-C3D4",
+        "FAKEBOARD5678",
+        "FAKE_DISK-1234567",
+    ] {
+        assert!(text.contains(value), "{value} is not literal in saved text");
+        assert!(
+            hits.iter().any(|h| h.plaintext.eq_ignore_ascii_case(value)),
+            "{value} in saved text is not caught"
+        );
+    }
+}
+
+#[test]
+fn refresh_rewrites_legacy_escaped_patterns_without_duplicates() {
+    let fresh = identity();
+    let mut legacy = fresh.clone();
+    for r in &mut legacy.rules {
+        match r.id.as_str() {
+            "hostname" => {
+                r.patterns =
+                    vec![r"(?i)(?<![A-Za-z0-9_-])(?:DESKTOP\-FIXTURE)(?![A-Za-z0-9_-])".into()]
+            }
+            "mac-address" => {
+                r.patterns = vec![
+                    r"(?i)(?<![0-9a-f])(?:AA[-:]?BB[-:]?CC[-:]?DD[-:]?EE[-:]?12)(?![0-9a-f])"
+                        .into(),
+                ]
+            }
+            "git-email" => {
+                r.patterns = vec![
+                    r"(?i)(?<![A-Za-z0-9_.+-])(?:fixture\+git@example\.invalid)(?![A-Za-z0-9_.+-])"
+                        .into(),
+                ]
+            }
+            _ => {}
+        }
+    }
+    assert!(legacy.rules != fresh.rules);
+    legacy.merge(generate(&fixture(), &selected())).unwrap();
+    assert!(
+        legacy.rules == fresh.rules,
+        "legacy patterns were not rewritten in place"
+    );
+}

@@ -139,6 +139,16 @@ impl IdentityConfig {
 
     /// Retain previously protected forms if a device is temporarily unavailable or changes.
     pub fn merge(&mut self, incoming: Vec<GeneratedRule>) -> Result<(), &'static str> {
+        for old in &mut self.rules {
+            let mut migrated: Vec<String> = Vec::with_capacity(old.patterns.len());
+            for p in &old.patterns {
+                let p = migrate_legacy(p, old.id == "username-path");
+                if !migrated.contains(&p) {
+                    migrated.push(p);
+                }
+            }
+            old.patterns = migrated;
+        }
         for new in incoming {
             if let Some(old) = self.rules.iter_mut().find(|r| r.id == new.id) {
                 for pattern in new.patterns {
@@ -406,13 +416,64 @@ fn hex_id(raw: &str) -> Option<String> {
         None
     }
 }
+// Leave dots unescaped for config-text matching, accepting a wildcard at each dot position.
+fn literal(v: &str) -> String {
+    let mut out = String::with_capacity(v.len());
+    for c in v.chars() {
+        if r"\+*?()|[]{}^$".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
+
+fn mac_forms(h: &str) -> String {
+    let pairs: Vec<&str> = (0..6).map(|i| &h[i * 2..i * 2 + 2]).collect();
+    format!("{}|{}|{}", pairs.join("-"), pairs.join(":"), h)
+}
+
+// Normalize saved patterns so refresh reuses them; usernames retain strict dot matching.
+fn migrate_legacy(pattern: &str, strict_dot: bool) -> String {
+    let mac = regex::Regex::new(r"(?:[0-9A-Fa-f]{2}\[-:\]\?){5}[0-9A-Fa-f]{2}").unwrap();
+    let expanded = mac.replace_all(pattern, |c: &regex::Captures| {
+        mac_forms(&c[0].replace("[-:]?", ""))
+    });
+    let mut out = String::with_capacity(expanded.len());
+    let mut chars = expanded.chars();
+    let mut in_class = false;
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => match chars.next() {
+                Some(n) if !in_class && "-&~#".contains(n) => out.push(n),
+                Some('.') if !in_class && !strict_dot => out.push('.'),
+                Some(n) => {
+                    out.push('\\');
+                    out.push(n);
+                }
+                None => out.push('\\'),
+            },
+            '[' if !in_class => {
+                in_class = true;
+                out.push(c);
+            }
+            ']' if in_class => {
+                in_class = false;
+                out.push(c);
+            }
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 fn alternatives(values: impl IntoIterator<Item = String>) -> String {
     let set: BTreeSet<String> = values.into_iter().collect();
     let mut sorted: Vec<_> = set.into_iter().collect();
     sorted.sort_by_key(|v| std::cmp::Reverse(v.len()));
     sorted
         .into_iter()
-        .map(|v| regex::escape(&v))
+        .map(|v| literal(&v))
         .collect::<Vec<_>>()
         .join("|")
 }
@@ -528,7 +589,7 @@ pub fn generate(v: &Collected, selection: &Selection) -> Vec<GeneratedRule> {
     {
         Some(format!(
             "(?<![0-9-]){}(?![0-9])",
-            regex::escape(sid.rsplit_once('-').unwrap().0)
+            literal(sid.rsplit_once('-').unwrap().0)
         ))
     } else {
         None
@@ -579,12 +640,7 @@ pub fn generate(v: &Collected, selection: &Selection) -> Vec<GeneratedRule> {
             {
                 return None;
             }
-            Some(
-                (0..6)
-                    .map(|i| h[i * 2..i * 2 + 2].to_string())
-                    .collect::<Vec<_>>()
-                    .join("[-:]?"),
-            )
+            Some(h)
         })
         .collect();
     add(
@@ -597,7 +653,10 @@ pub fn generate(v: &Collected, selection: &Selection) -> Vec<GeneratedRule> {
         } else {
             Some(format!(
                 "(?i)(?<![0-9a-f])(?:{})(?![0-9a-f])",
-                macs.into_iter().collect::<Vec<_>>().join("|")
+                macs.iter()
+                    .map(|h| mac_forms(h))
+                    .collect::<Vec<_>>()
+                    .join("|")
             ))
         },
     );
@@ -617,6 +676,7 @@ pub fn generate(v: &Collected, selection: &Selection) -> Vec<GeneratedRule> {
         ),
     );
     if valid_text(&v.user, 1) {
+        // Usernames only match in context and need an exact `.`; keep strict escaping.
         let user = regex::escape(&v.user);
         let slash = regex::escape(&char::from(92).to_string());
         let mut paths = vec![
@@ -626,7 +686,7 @@ pub fn generate(v: &Collected, selection: &Selection) -> Vec<GeneratedRule> {
         ];
         let mut accounts = vec!["(?<=USERNAME=)".to_string(), "(?<=USER=)".into()];
         if valid_text(&v.host, 1) {
-            accounts.push(format!("(?<={}{slash})", regex::escape(&v.host)));
+            accounts.push(format!("(?<={}{slash})", literal(&v.host)));
         }
         if !cfg!(windows) {
             paths.extend([r"(?<=/home/)".into(), r"(?<=/Users/)".into()]);
